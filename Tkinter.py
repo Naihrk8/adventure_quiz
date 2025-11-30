@@ -250,8 +250,8 @@ Developed by our awesome team:
 1. Baniqued, Zyron Dheniel - Project Manager
 2. Ocampo, Rhian Kate - Programmer
 3. Frias, Justine Andrei - UI/UX Designer
-4. Pascual, Shaqckane - Document Writer
-5. Ducusin, Katherina - Researcher"""
+4. Pascual, Shaqckane - Researcher
+5. Ducusin, Katherina - Document Writer"""
 
 PROLOGUE_SCENES_TEMPLATE = [
     (IMG_S1, "It was late at night in the computer lab.\nOnly the soft clicking of keys filled the room."),
@@ -899,25 +899,25 @@ class AdventureQuiz(tk.Tk):
         self._tk_image_cache = {}
         self._medal_tks = {}
 
-     # hero size & initial pos 
+     # hero size
         self.hero_w, self.hero_h = 180, 280
         self.hero_x = WIDTH - 200
         self.hero_y = HEIGHT - 180  
-        self.hero_speed = 10        
-        self._walk_delay = 12      
+        self.hero_speed = 10      
+        self._walk_delay = 12    
         self.animating = False
         self.anim_target_door = None
         self.door_opening = None
         self.door_geo = {}
 
-     # visibility & fade 
+     # visibility & fade
         self.hero_visible = True
         self.hero_opacity = 1.0
         self.hero_fade_steps = 6
 
-      # Idle bobbing 
+      # Idle bobbing
         self.hero_bob_enabled = True
-        self.hero_bob_amp = 6            
+        self.hero_bob_amp = 6         
         self.hero_bob_period = 900     
         self.hero_bob_phase = 0.0
         self.hero_bob_offset = 0.0
@@ -1487,7 +1487,7 @@ class AdventureQuiz(tk.Tk):
         # Move to next scene
         self.scene_index += 1
 
-        # If all scenes are done 
+        # If all scenes are done → go to help_choice
         if self.scene_index >= len(self.prologue_scenes):
             try:
                 if pygame_available and story_typing:
@@ -1915,8 +1915,6 @@ class AdventureQuiz(tk.Tk):
         all_answered = (int(getattr(self, "keys_collected", 0)) >= total_questions)
         self.draw_button("DONE", btn_y, "done_end", x=right_x, w=btn_w, h=btn_h)
    
-
-
     def draw_leaderboards(self):
         box_x, box_y, box_w, box_h = 80, 60, WIDTH - 160, HEIGHT - 140
         self.canvas.create_rectangle(box_x-6, box_y-6, box_x+box_w+6, box_y+box_h+6, fill=BORDER)
@@ -2074,34 +2072,12 @@ class AdventureQuiz(tk.Tk):
         if which not in self.door_geo:
             return
         x, y, w, h = self.door_geo[which]
-        INSIDE_OFFSET_RATIO = 0.58
-
-        # Desired target 
-        desired_x = x + int(w * INSIDE_OFFSET_RATIO)
-
-        # fully visible on-screen
-        hero_half = int(getattr(self, "hero_w", 180) / 2)
-        panel_x = PANEL_MARGIN
-        panel_w = WIDTH - 2 * PANEL_MARGIN
-        min_allowed = panel_x + hero_half + 8
-        max_allowed = panel_x + panel_w - hero_half - 8
-        door_min = x + hero_half + 4
-        door_max = x + w - hero_half - 4
-
-        # clamp 
-        target_x = max(min_allowed, min(max_allowed, desired_x))
-        target_x = max(door_min, min(door_max, target_x))
-        self.hero_target_x = int(target_x)
+        target_center_x = x + (w // 2)
+        self.hero_target_x = target_center_x
         self.animating = True
         self.anim_target_door = which
         self.state = "anim_walk"
         self.door_opening = None
-
-        try:
-            self.hero_y = y + h - (self.hero_h // 2) + 6
-        except Exception:
-            pass
-
         self._walk_step()
 
     def _walk_step(self):
@@ -2228,7 +2204,6 @@ class AdventureQuiz(tk.Tk):
                 self.unlocked.add(5)
             except Exception:
                 self.unlocked = {5}
-            # ALWAYS show the hero 
             self.hero_visible = True
             self.hero_opacity = 1.0
 
@@ -2278,7 +2253,6 @@ class AdventureQuiz(tk.Tk):
                 except Exception:
                     self._help_after_id = None
         elif tag == "play_again":
-            # stop typing 
             try:
                 if getattr(self, "_final_after_id", None):
                     self.after_cancel(self._final_after_id)
@@ -2291,8 +2265,6 @@ class AdventureQuiz(tk.Tk):
                     self._help_after_id = None
             except Exception:
                 pass
-
-            # stop typing sounds
             try:
                 if pygame_available:
                     try:
@@ -2402,7 +2374,6 @@ class AdventureQuiz(tk.Tk):
                         safe_left = panel_x + hero_half + 8
                         safe_right = panel_x + panel_w - hero_half - 8
 
-                        # fallback 
                         if safe_right <= safe_left:
                             safe_right = panel_x + panel_w - int(door_w * 0.25)
                             safe_left = panel_x + int(door_w * 0.25)
