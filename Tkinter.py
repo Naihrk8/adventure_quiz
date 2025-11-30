@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import font as tkfont
 import textwrap
 import time
+import math
 import os
 from pathlib import Path
 import json
@@ -15,7 +16,7 @@ except Exception:
     pygame = None
     PYGAME_AVAILABLE = False
 
-# Images (Pillow)
+# Images 
 try:
     from PIL import Image, ImageTk, ImageSequence
     PIL_AVAILABLE = True
@@ -26,10 +27,6 @@ except Exception:
     PIL_AVAILABLE = False
 
 def make_transparent(pil_img, white_thresh=240):
-    """
-    Return a copy of pil_img converted to RGBA with near-white pixels made transparent.
-    white_thresh: 0-255 threshold; default 240 means R,G,B > 240 considered white.
-    """
     if pil_img is None:
         return None
     try:
@@ -46,7 +43,6 @@ def make_transparent(pil_img, white_thresh=240):
         im.putdata(new_data)
         return im
     except Exception as e:
-        print("make_transparent error:", e)
         try:
             return pil_img.convert("RGBA")
         except Exception:
@@ -60,7 +56,7 @@ except Exception:
 
 ASSETS_DIR = (SCRIPT_DIR / "assets") if (SCRIPT_DIR / "assets").exists() else SCRIPT_DIR
 
-# Audio paths (adjust if needed)
+# Audio paths 
 CLICK_SOUND_PATH   = Path(r"C:\Python_Adventure_Project") / "Button_Effects.mp3"
 BG_MUSIC_PATH      = Path(r"C:\Python_Adventure_Project") / "Bg_music.mp3"
 TYPING_SOUND_PATH  = Path(r"C:\Python_Adventure_Project") / "typing.mp3"
@@ -93,7 +89,7 @@ IMG_S_HAPPY_HINT = "happy_boy"
 # search dirs order
 SEARCH_DIRS = [Path.cwd(), ASSETS_DIR, SCRIPT_DIR, Path("/mnt/data")]
 
-# file extensions to try
+# file extensions 
 COMMON_EXTS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp4"]
 
 def find_file_by_hint(hint):
@@ -102,7 +98,6 @@ def find_file_by_hint(hint):
     cand = Path(hint)
     if cand.exists() and cand.is_file():
         return cand.resolve()
-    
     if cand.suffix:
         for d in SEARCH_DIRS:
             try:
@@ -111,7 +106,6 @@ def find_file_by_hint(hint):
                     return p.resolve()
             except Exception:
                 pass
- 
     for d in SEARCH_DIRS:
         for ext in COMMON_EXTS:
             try:
@@ -120,7 +114,6 @@ def find_file_by_hint(hint):
                     return p.resolve()
             except Exception:
                 pass
-
     for d in SEARCH_DIRS:
         try:
             if not d.exists(): continue
@@ -187,7 +180,7 @@ NEWLINE_DELAY = 40
 # Game data 
 questions = [
     {
-        "story": "You step into a dim chamber. A plaque reads: 'Talk like the developers.'",
+       "story": "You step into a dim chamber.A plaque reads: 'Talk like \nthe developers.'",
         "question": "Which symbol is used for comments in Python?",
         "answer": "b",
         "options": ["//", "#", "*", "--"]
@@ -288,15 +281,15 @@ def safe_load_image(path: Path, target_w=None, target_h=None):
         pil = Image.open(str(p_abs)).convert("RGBA")
         if target_w and target_h:
             iw, ih = pil.size
-            ratio_src = iw / ih
-            ratio_target = target_w / target_h
+            ratio_src = iw / max(1, ih)
+            ratio_target = target_w / max(1, target_h)
             if ratio_src > ratio_target:
                 new_h = target_h
                 new_w = int(ratio_src * new_h)
             else:
                 new_w = target_w
-                new_h = int(new_w / ratio_src)
-            pil = pil.resize((new_w, new_h), Image.LANCZOS)
+                new_h = int(new_w / max(1, ratio_src))
+            pil = pil.resize((max(1,new_w), max(1,new_h)), Image.LANCZOS)
             left = max(0, (pil.width - target_w) // 2)
             upper = max(0, (pil.height - target_h) // 2)
             pil = pil.crop((left, upper, left + target_w, upper + target_h))
@@ -306,16 +299,11 @@ def safe_load_image(path: Path, target_w=None, target_h=None):
         return None
 
 def load_gif_frames(path):
-    """
-    Load GIF frames as RGBA PIL.Image objects and return (frames_list, durations_list_ms).
-    More robust: supports single-frame GIFs and missing 'duration' info.
-    """
     frames = []
     durations = []
     try:
         img = Image.open(str(path))
     except Exception as e:
-        print("load_gif_frames: cannot open:", e)
         return frames, durations
 
     try:
@@ -329,32 +317,22 @@ def load_gif_frames(path):
             frames.append(fr)
             durations.append(dur)
         if not got_any:
-            # fallback single frame
             fr = img.convert("RGBA").copy()
             frames.append(fr); durations.append(120)
-    except Exception as e:
+    except Exception:
         try:
             fr = img.convert("RGBA").copy()
             frames.append(fr); durations.append(120)
-        except Exception as e2:
-            print("load_gif_frames fallback failed:", e, e2)
+        except Exception:
+            pass
     return frames, durations
 
-# Video loader
 def load_video_frames(path, max_frames=60, target_w=None, target_h=None, frame_step=1):
-    """
-    Attempts to extract frames from a video file and convert them to PIL RGBA images.
-    Tries imageio first, then cv2. Returns (frames_list, durations_list_ms).
-    - max_frames: maximum number of frames to extract
-    - frame_step: sample every Nth frame (1 = every frame)
-    - target_w, target_h: if provided, frames will be resized (preserving aspect) and center-cropped
-    """
     frames = []
     durations = []
     p = Path(path)
     if not p.exists():
         return frames, durations
-
     # Try imageio
     try:
         import imageio
@@ -384,14 +362,14 @@ def load_video_frames(path, max_frames=60, target_w=None, target_h=None, frame_s
                     continue
             if target_w and target_h:
                 iw, ih = pil.size
-                ratio_src = iw / ih
-                ratio_target = target_w / target_h
+                ratio_src = iw / max(1, ih)
+                ratio_target = target_w / max(1, target_h)
                 if ratio_src > ratio_target:
                     new_h = target_h
                     new_w = int(ratio_src * new_h)
                 else:
                     new_w = target_w
-                    new_h = int(new_w / ratio_src)
+                    new_h = int(new_w / max(1, ratio_src))
                 pil = pil.resize((max(1,new_w), max(1,new_h)), _PIL_Image.LANCZOS)
                 left = max(0, (pil.width - target_w) // 2)
                 upper = max(0, (pil.height - target_h) // 2)
@@ -409,7 +387,7 @@ def load_video_frames(path, max_frames=60, target_w=None, target_h=None, frame_s
     except Exception:
         pass
 
-    # Fallback
+    # Fallback 
     try:
         import cv2
         cap = cv2.VideoCapture(str(p))
@@ -431,14 +409,14 @@ def load_video_frames(path, max_frames=60, target_w=None, target_h=None, frame_s
                 idx += 1; continue
             if target_w and target_h:
                 iw, ih = pil.size
-                ratio_src = iw / ih
-                ratio_target = target_w / target_h
+                ratio_src = iw / max(1, ih)
+                ratio_target = target_w / max(1, target_h)
                 if ratio_src > ratio_target:
                     new_h = target_h
                     new_w = int(ratio_src * new_h)
                 else:
                     new_w = target_w
-                    new_h = int(new_w / ratio_src)
+                    new_h = int(new_w / max(1, ratio_src))
                 pil = pil.resize((max(1,new_w), max(1,new_h)), _PIL_Image.LANCZOS)
                 left = max(0, (pil.width - target_w) // 2)
                 upper = max(0, (pil.height - target_h) // 2)
@@ -622,8 +600,7 @@ class LoadingScreen(tk.Toplevel):
         self.canvas.pack(fill="both", expand=True)
         self.start_time = None; self._after_id = None
         sw, sh = master_w, master_h
-        self.canvas.create_text(sw//2, int(sh*0.15), text="LOADING...", font=("Press Start 2P", 22)
-, fill=ORANGE)
+        self.canvas.create_text(sw//2, int(sh*0.15), text="LOADING...", font=("Press Start 2P", 22), fill=ORANGE)
         self.percent_text_id = self.canvas.create_text(sw//2, int(sh*0.28), text="0%", font=("Consolas", 22), fill=WHITE)
         bar_w = int(sw * 0.6); bar_h = max(16, int(sh * 0.04))
         self.bar_left = (sw - bar_w) // 2; self.bar_top = int(sh * 0.45)
@@ -672,43 +649,65 @@ class LoadingScreen(tk.Toplevel):
 
 class AdventureQuiz(tk.Tk):
     def __init__(self):
+        global WIDTH, HEIGHT
         super().__init__()
         self.title("Python Adventure Quiz")
-        x = (self.winfo_screenwidth() - WIDTH)//2; y = (self.winfo_screenheight() - HEIGHT)//2
-        self.geometry(f"{WIDTH}x{HEIGHT}+{x}+{y}")
-        self.resizable(False, False)
 
-        # background tiling 
-        self.bg_loaded = False
-        self._bg_pil = None
-        self._bg_tile_width = 0
-        self._bg_tk_images = []
-        self.bg_scroll_x = 0.0
-        for d in SEARCH_DIRS:
-            if not d.exists(): continue
-            for fname in ("bg.gif","bg.png","bg.jpg"):
-                cand = d / fname
-                if cand.exists():
-                    try:
-                        if PIL_AVAILABLE:
-                            pil_img = Image.open(str(cand)).convert("RGBA")
-                            target_h = HEIGHT
-                            aspect = pil_img.width / max(1, pil_img.height)
-                            target_w = max(1,int(aspect*target_h))
-                            pil_img = pil_img.resize((target_w, target_h), Image.LANCZOS)
-                            self._bg_pil = pil_img; self._bg_tile_width = target_w
-                            tiles_needed = (WIDTH // self._bg_tile_width) + 3
-                            for _ in range(tiles_needed):
-                                self._bg_tk_images.append(ImageTk.PhotoImage(self._bg_pil))
-                            self.bg_loaded = True
-                    except Exception as e:
-                        print("BG prep fail:", e)
-                    break
-            if self.bg_loaded: break
+        # Full-screen
+        try:
+            screen_w = self.winfo_screenwidth()
+            screen_h = self.winfo_screenheight()
+            init_w = min(1370, screen_w)
+            init_h = min(730, screen_h)
+            x = (screen_w - init_w)//2
+            y = (screen_h - init_h)//2
+            self.geometry(f"{init_w}x{init_h}+{x}+{y}")
+        except Exception:
+            try:
+                self.geometry(f"{WIDTH}x{HEIGHT}")
+            except Exception:
+                pass
 
+        try:
+            self.resizable(True, True)
+        except Exception:
+            pass
+
+        self.fullscreen = False
+
+        # globals
+        self.update_idletasks()
+        try:
+            WIDTH = max(1, self.winfo_width())
+            HEIGHT = max(1, self.winfo_height())
+        except Exception:
+            pass
+        try:
+            self.configure(bg=BLACK)
+        except Exception:
+            pass
+
+        # flexible canvas
+        self.canvas = tk.Canvas(self, highlightthickness=0, bg=BLACK)
+        self.canvas.pack(fill="both", expand=True)
+        self.canvas.bind("<Enter>", lambda e: self.canvas.focus_set())
+
+        # bind keys & events
+        self.bind("<F11>", self._toggle_fullscreen)
+        self.bind("<Escape>", self._exit_fullscreen)
+        self.bind("<Configure>", self._on_configure)
+        self.bind("<Key>", self.on_key)
+        self.bind_all("<MouseWheel>", self.on_mousewheel_windows)
+        self.bind_all("<Button-4>", self.on_mousewheel_linux); self.bind_all("<Button-5>", self.on_mousewheel_linux)
+        self.canvas.bind("<Button-1>", self.on_click)
+        self.canvas.bind("<Motion>", self.on_mouse_move)
+        self.mouse_x = -9999; self.mouse_y = -9999
+
+        # fonts
         self.small_font, self.title_font, _ = pick_pixel_like_font(self)
         self.button_font = self.small_font
 
+        # state
         self.state = "menu"
         self.scroll_offset = 0
         self.player_name = ""
@@ -719,15 +718,27 @@ class AdventureQuiz(tk.Tk):
 
         self.completed = set()
         self.unlocked = {5}
-        self.auto_next_door = None  
+        self.auto_next_door = None
         self._score_saved = False
         self.hero_img = None; self.hero_frames = None; self.hero_frame_durations = []; self.hero_frame_idx = 0; self.hero_is_animated = False
 
+        # background & door bg placeholders
+        self.bg_loaded = False
+        self._bg_pil = None
+        self._bg_tile_width = 0
+        self._bg_tk_images = []
+        self.bg_scroll_x = 0.0
+
+        # prepare background 
+        self._prepare_bg_tiles()
+        panel_w, panel_h = WIDTH - 2*PANEL_MARGIN, HEIGHT - 2*PANEL_MARGIN
+        self._prepare_door_bg(panel_w, panel_h)
+
+        # hero loading 
         if PIL_AVAILABLE and CHAR_SPRITE_PATH:
             try:
                 p = Path(CHAR_SPRITE_PATH)
                 if p.suffix.lower() in (".mp4", ".mov", ".avi", ".mkv", ".webm"):
-                    # extract frames from video
                     frames, durations = load_video_frames(str(p), max_frames=48, target_w=220, target_h=340, frame_step=1)
                     if frames:
                         self.hero_frames = frames
@@ -752,6 +763,7 @@ class AdventureQuiz(tk.Tk):
         if self.hero_is_animated:
             self._schedule_hero_frame()
 
+        # load door images
         self.door_closed_img = None
         if PIL_AVAILABLE and DOOR_CLOSED_PATH:
             try: self.door_closed_img = Image.open(str(DOOR_CLOSED_PATH)).convert("RGBA")
@@ -789,7 +801,6 @@ class AdventureQuiz(tk.Tk):
 
         for k in ("gold", "silver", "bronze"):
             pil = self._medal_pils.get(k)
-
             if pil is None:
                 print(f"[init] medal {k} pil missing")
             else:
@@ -835,7 +846,6 @@ class AdventureQuiz(tk.Tk):
 
         # animate gifs loop
         def animate_gifs():
-            # advance cry
             try:
                 if self.cry_frames:
                     self.cry_frame_index = (self.cry_frame_index + 1) % len(self.cry_frames)
@@ -844,7 +854,6 @@ class AdventureQuiz(tk.Tk):
                     cry_delay = 120
             except Exception:
                 cry_delay = 120
-            # advance happy
             try:
                 if self.happy_frames:
                     self.happy_frame_index = (self.happy_frame_index + 1) % len(self.happy_frames)
@@ -860,7 +869,7 @@ class AdventureQuiz(tk.Tk):
                 pass
         animate_gifs()
 
-        # end
+        # ending frames
         self.ending_frames = []
         self.ending_durations = []
         self.ending_frame_index = 0
@@ -890,88 +899,39 @@ class AdventureQuiz(tk.Tk):
         self._tk_image_cache = {}
         self._medal_tks = {}
 
-
-    # Hero size 
+     # hero size & initial pos 
         self.hero_w, self.hero_h = 180, 280
         self.hero_x = WIDTH - 200
-        self.hero_y = HEIGHT - 180
-        self.hero_speed = 6      
-        self._walk_delay = 24    
-        self.animating = False; self.anim_target_door = None; self.door_opening = None; self.door_geo = {}
+        self.hero_y = HEIGHT - 180  
+        self.hero_speed = 10        
+        self._walk_delay = 12      
+        self.animating = False
+        self.anim_target_door = None
+        self.door_opening = None
+        self.door_geo = {}
 
-        # visibility & fade
-        self.hero_visible = False
-        self.hero_opacity = 0.0
-        self.hero_fade_steps = 6    
-        self.hero_w, self.hero_h = 180, 280
+     # visibility & fade 
+        self.hero_visible = True
+        self.hero_opacity = 1.0
+        self.hero_fade_steps = 6
 
-
-        # canvas and input
-        self.canvas = tk.Canvas(self, width=WIDTH, height=HEIGHT, highlightthickness=0)
-        self.canvas.pack()
-             
-        try:
-            panel_w = WIDTH - 2 * PANEL_MARGIN
-            panel_h = HEIGHT - 2 * PANEL_MARGIN
-
-            self._door_bg_tk = None
-
-            if DOOR_BG_PATH and DOOR_BG_PATH.exists():
-
-                try:
-                    tkimg = self._get_tk_image_for_panel(DOOR_BG_PATH, panel_w, panel_h)
-                    if tkimg:
-                        self._door_bg_tk = tkimg
-                except Exception as e:
-                    print("preload: _get_tk_image_for_panel failed:", e)
-
-                if self._door_bg_tk is None and PIL_AVAILABLE:
-                    try:
-                        pil_bg = safe_load_image(
-                            DOOR_BG_PATH,
-                            target_w=panel_w,
-                            target_h=panel_h
-                        )
-                        if pil_bg:
-                            try:
-                                self._door_bg_tk = ImageTk.PhotoImage(pil_bg)
-                            except Exception as e:
-                                print("preload: ImageTk.PhotoImage failed:", e)
-                    except Exception as e:
-                        print("preload: safe_load_image failed:", e)
-
-                if self._door_bg_tk is None:
-                    try:
-                        tkimg2 = tk.PhotoImage(file=str(DOOR_BG_PATH))
-                        self._door_bg_tk = tkimg2
-                    except Exception as e:
-                        print("preload: tk.PhotoImage fallback failed:", e)
-
-                if self._door_bg_tk is None:
-                    print("preload: could not create PhotoImage for", DOOR_BG_PATH)
-                else:
-                    setattr(self, "_door_bg_tk", self._door_bg_tk)
-
-            else:
-                print("preload: DOOR_BG_PATH missing:", DOOR_BG_PATH)
-
-        except Exception as e:
-            print("preload door bg error:", e)
+      # Idle bobbing 
+        self.hero_bob_enabled = True
+        self.hero_bob_amp = 6            
+        self.hero_bob_period = 900     
+        self.hero_bob_phase = 0.0
+        self.hero_bob_offset = 0.0
 
 
-        self.bind("<Key>", self.on_key)
-        self.canvas.bind("<Enter>", lambda e: self.canvas.focus_set())
-        self.bind_all("<MouseWheel>", self.on_mousewheel_windows)
-        self.bind_all("<Button-4>", self.on_mousewheel_linux); self.bind_all("<Button-5>", self.on_mousewheel_linux)
-        self.canvas.bind("<Button-1>", self.on_click)
-        self.canvas.bind("<Motion>", self.on_mouse_move)
-        self.mouse_x = -9999; self.mouse_y = -9999
-
-        self.click_areas = {}
-        self.story_text = ""
+         # Final typed ending scene
+        self.final_text_full = ""
+        self.final_text_shown = ""
+        self.final_char_idx = 0
+        self.final_done = False
+        self._final_after_id = None
 
 
-        # prologue
+        # prologue and helpers
         self.prologue_scenes = []; self.scene_index = 0; self.scene_text_full = ""; self.scene_text_shown = ""; self.scene_char_idx = 0; self.scene_done = False; self._type_after_id = None
         self.help_choice_visible = False; self.help_happy_shown = False
         self.help_text_full = ""; self.help_text_shown = ""; self.help_char_idx = 0; self.help_done = False; self._help_after_id = None
@@ -979,63 +939,126 @@ class AdventureQuiz(tk.Tk):
         self._last_time = time.time()
         self._tick(); self.redraw(); self._blink_loop()
 
-        
-        self._door_bg_path = DOOR_BG_PATH if DOOR_BG_PATH.exists() else None
-        
+    # helpers background
+    def _prepare_bg_tiles(self):
+        self.bg_loaded = False
+        self._bg_pil = None
+        self._bg_tile_width = 0
+        self._bg_tk_images = []
+        for d in SEARCH_DIRS:
+            if not d.exists(): continue
+            for fname in ("bg.gif","bg.png","bg.jpg"):
+                cand = d / fname
+                if cand.exists():
+                    try:
+                        if PIL_AVAILABLE:
+                            pil_img = Image.open(str(cand)).convert("RGBA")
+                            target_h = max(1, HEIGHT)
+                            aspect = pil_img.width / max(1, pil_img.height)
+                            target_w = max(1, int(aspect * target_h))
+                            pil_img = pil_img.resize((target_w, target_h), Image.LANCZOS)
+                            self._bg_pil = pil_img
+                            self._bg_tile_width = target_w
+                            tiles_needed = (max(1, WIDTH) // max(1, self._bg_tile_width)) + 3
+                            for _ in range(tiles_needed):
+                                try:
+                                    self._bg_tk_images.append(ImageTk.PhotoImage(self._bg_pil))
+                                except Exception:
+                                    pass
+                            if self._bg_tk_images:
+                                self.bg_loaded = True
+                    except Exception:
+                        pass
+                    break
+            if self.bg_loaded: break
 
-    def _schedule_hero_frame(self):
-        if not self.hero_is_animated or not self.hero_frames: return
-        dur = 100
-        try: dur = int(self.hero_frame_durations[self.hero_frame_idx])
-        except Exception: dur = 100
-        self.after(max(40,dur), self._advance_hero_frame)
-
-    def _advance_hero_frame(self):
-        if not self.hero_is_animated or not self.hero_frames: return
-        self.hero_frame_idx = (self.hero_frame_idx + 1) % len(self.hero_frames)
-        self.hero_img = self.hero_frames[self.hero_frame_idx]
-        keys_to_remove = [k for k in self._img_cache.keys() if isinstance(k, tuple) and k[0] in ("hero","hero_resized")]
-        for k in keys_to_remove:
-            try: del self._img_cache[k]
-            except: pass
-        tk_keys = [k for k in self._tk_image_cache.keys() if str(k).find("hero")!=-1]
-        for k in tk_keys:
-            try: del self._tk_image_cache[k]
-            except: pass
-        self._schedule_hero_frame()
-
-    def _get_resized_photo(self, pil_img, key_id, w, h):
-        if pil_img is None: return None
-        ck = (key_id, int(w), int(h))
-        if ck in self._img_cache: return self._img_cache[ck]
+    def _prepare_door_bg(self, panel_w=None, panel_h=None):
         try:
-            resized = pil_img.resize((int(w), int(h)), Image.LANCZOS)
-            tkimg = ImageTk.PhotoImage(resized); self._img_cache[ck] = tkimg; return tkimg
-        except Exception as e:
-            print("resize fail:", e); return None
-
-    def _get_tk_image_for_panel(self, path, w, h):
-        key = (str(path), int(w), int(h))
-        if key in self._tk_image_cache: return self._tk_image_cache[key]
-        if PIL_AVAILABLE:
-            pil = safe_load_image(Path(path), target_w=w, target_h=h)
-            if pil is not None:
+            panel_w = panel_w or (WIDTH - 2 * PANEL_MARGIN)
+            panel_h = panel_h or (HEIGHT - 2 * PANEL_MARGIN)
+            self._door_bg_tk = None
+            if DOOR_BG_PATH and DOOR_BG_PATH.exists() and PIL_AVAILABLE:
+                pil_bg = safe_load_image(DOOR_BG_PATH, target_w=panel_w, target_h=panel_h)
+                if pil_bg:
+                    try:
+                        self._door_bg_tk = ImageTk.PhotoImage(pil_bg)
+                    except Exception:
+                        self._door_bg_tk = None
+            if self._door_bg_tk is None:
                 try:
-                    tkimg = ImageTk.PhotoImage(pil); self._tk_image_cache[key] = tkimg; return tkimg
-                except Exception as e:
-                    print("_get_tk_image_for_panel: ImageTk failed:", e)
+                    p = Path(DOOR_BG_PATH)
+                    if p.exists():
+                        self._door_bg_tk = tk.PhotoImage(file=str(p))
+                except Exception:
+                    self._door_bg_tk = None
+        except Exception as e:
+            print("_prepare_door_bg error:", e)
+            self._door_bg_tk = None
+
+    def _toggle_fullscreen(self, event=None):
         try:
-            p = Path(path)
-            if p.exists():
-                try:
-                    tkimg = tk.PhotoImage(file=str(p)); self._tk_image_cache[key] = tkimg; return tkimg
-                except Exception as e:
-                    print("_get_tk_image_for_panel: tk.PhotoImage failed:", e)
+            self.fullscreen = not getattr(self, "fullscreen", False)
+            self.attributes("-fullscreen", self.fullscreen)
+            self.update_idletasks()
+            global WIDTH, HEIGHT
+            WIDTH = max(1, self.winfo_width())
+            HEIGHT = max(1, self.winfo_height())
+            try:
+                self.canvas.config(width=WIDTH, height=HEIGHT)
+            except Exception:
+                pass
+            # rebuild backgrounds for new size
+            try: self._prepare_bg_tiles()
+            except Exception: pass
+            try: self._prepare_door_bg(WIDTH - 2*PANEL_MARGIN, HEIGHT - 2*PANEL_MARGIN)
+            except Exception: pass
         except Exception as e:
-            print("_get_tk_image_for_panel fallback error:", e)
-        return None
+            print("_toggle_fullscreen error:", e)
 
-    # drawing helpers
+    def _exit_fullscreen(self, event=None):
+        try:
+            self.fullscreen = False
+            self.attributes("-fullscreen", False)
+            self.update_idletasks()
+            global WIDTH, HEIGHT
+            WIDTH = max(1, self.winfo_width())
+            HEIGHT = max(1, self.winfo_height())
+            try:
+                self.canvas.config(width=WIDTH, height=HEIGHT)
+            except Exception:
+                pass
+            try: self._prepare_bg_tiles()
+            except Exception: pass
+            try: self._prepare_door_bg(WIDTH - 2*PANEL_MARGIN, HEIGHT - 2*PANEL_MARGIN)
+            except Exception: pass
+        except Exception as e:
+            print("_exit_fullscreen error:", e)
+
+    def _on_configure(self, event):
+        try:
+            if event.width <= 1 or event.height <= 1:
+                return
+            global WIDTH, HEIGHT
+            if event.width != WIDTH or event.height != HEIGHT:
+                WIDTH = max(1, event.width)
+                HEIGHT = max(1, event.height)
+                try:
+                    self.canvas.config(width=WIDTH, height=HEIGHT)
+                except Exception:
+                    pass
+                try:
+                    self._prepare_bg_tiles()
+                except Exception:
+                    pass
+                try:
+                    panel_w, panel_h = WIDTH - 2 * PANEL_MARGIN, HEIGHT - 2 * PANEL_MARGIN
+                    self._prepare_door_bg(panel_w, panel_h)
+                except Exception:
+                    pass
+        except Exception as e:
+            print("_on_configure error:", e)
+
+    # drawing helpers 
     def draw_mc_button(self, text, x, y, w, h, tag):
         mx, my = getattr(self, "mouse_x", -9999), getattr(self, "mouse_y", -9999)
         hovered = (x <= mx <= x + w) and (y <= my <= y + h)
@@ -1070,49 +1093,34 @@ class AdventureQuiz(tk.Tk):
         now = time.time(); dt = now - getattr(self, "_last_time", now); self._last_time = now
         self._update_bg_offset(dt); self.after(16, self._tick)
 
+
     def clear(self):
         self.canvas.delete("all"); self.click_areas = {}
 
     def draw_button(self, text, y, tag, x=None, w=BUTTON_W, h=BUTTON_H):
-        """
-        Draw a nicely padded button and register click area.
-        Center text exactly in the button and shrink font if necessary to avoid overflow.
-        """
         if x is None:
             x = WIDTH // 2 - w // 2
-
         mx, my = getattr(self, "mouse_x", -9999), getattr(self, "mouse_y", -9999)
         hovered = (x <= mx <= x + w) and (y <= my <= y + h)
         border_color = DARK_ORANGE if hovered else BORDER
         inner_fill = BLACK
         text_color = HOVER_YELLOW if hovered else ORANGE
-
-        # draw button rectangles
         self.canvas.create_rectangle(x-3, y-3, x+w+3, y+h+3, fill=border_color, outline=border_color)
         self.canvas.create_rectangle(x, y, x+w, y+h, fill=inner_fill, outline=inner_fill)
-
-        # determine font size
         try:
             base_family = self.button_font.cget("family")
             base_size = max(12, int(self.button_font.cget("size")))
             btn_font = tkfont.Font(family=base_family, size=base_size)
         except Exception:
             btn_font = self.small_font
-
-        # shrink font 
         text_w = btn_font.measure(text)
-        padding = 28 
+        padding = 28
         if text_w + padding > w:
             ratio = (w - padding) / max(1, text_w)
             new_size = max(9, int(max(8, btn_font.cget("size")) * ratio))
             btn_font = tkfont.Font(family=btn_font.cget("family"), size=new_size)
-
-        # draw text
         self.canvas.create_text(x + w//2, y + h//2, text=text, fill=text_color, font=btn_font, anchor="center")
-
-        # click area
         self.click_areas[tag] = (x, y, x + w, y + h)
-
 
     def draw_boxed_text(self, title, content, offset_pixels):
         box_x, box_y, box_w, box_h = 100, 100, WIDTH-200, HEIGHT-200
@@ -1131,7 +1139,6 @@ class AdventureQuiz(tk.Tk):
             yy += line_height; idx += 1
         self.draw_button("BACK TO MENU", HEIGHT-120, "back_to_menu", w=300, h=60)
 
-    # Menu
     def draw_menu(self):
         box_w, box_h = 900, 120; box_x, box_y = WIDTH//2 - box_w//2, 60
         self.canvas.create_rectangle(box_x-6, box_y-6, box_x+box_w+6, box_y+box_h+6, fill=BORDER)
@@ -1143,12 +1150,9 @@ class AdventureQuiz(tk.Tk):
     def draw_enter_name(self):
         box_w, box_h = 800, 198; LIFT_UP = 40
         box_x, box_y = WIDTH//2 - box_w//2, HEIGHT//2 - box_h//2 - LIFT_UP
-        # outer frame
         self.canvas.create_rectangle(box_x-6, box_y-6, box_x+box_w+6, box_y+box_h+6, fill=BORDER)
         self.canvas.create_rectangle(box_x, box_y, box_x+box_w, box_y+box_h, fill=BLACK)
         self.canvas.create_text(WIDTH//2, box_y+40, text="ENTER YOUR NAME", font=self.title_font, fill=ORANGE)
-
-        # input box 
         input_box = (box_x+20, box_y+80, box_x+box_w-20, box_y+120)
         self.canvas.create_rectangle(*input_box, outline=WHITE)
         padding_x = 10
@@ -1158,35 +1162,25 @@ class AdventureQuiz(tk.Tk):
             while current_text and self.small_font.measure(current_text) > available_width:
                 current_text = current_text[1:]
         self.canvas.create_text(input_box[0] + padding_x, input_box[1] + 8, text=current_text, anchor="nw", fill=WHITE, font=self.small_font)
-
-        # cursor
         if self.cursor_visible:
             cursor_x = input_box[0] + padding_x + self.small_font.measure(current_text)
             if cursor_x < input_box[2] - padding_x:
                 self.canvas.create_line(cursor_x, input_box[1] + 4, cursor_x, input_box[3] - 4, fill=WHITE, width=2)
-
-        # SUBMIT button
         submit_w, submit_h = 155, 48
         submit_x = box_x + (box_w - submit_w)//2
         submit_y = box_y + 130
         self.draw_button("SUBMIT", submit_y, "submit_name", x=submit_x, w=submit_w, h=submit_h)
-
-        # BACK button 
         BACK_GAP = 28
         back_w, back_h = 300, 60
         back_x = box_x + (box_w - back_w) // 2
-        back_y = box_x + box_h + BACK_GAP  
-        # ensure back button fits on screen
+        back_y = box_x + box_h + BACK_GAP
         if back_y + back_h > HEIGHT - 8:
             back_y = HEIGHT - back_h - 12
         self.draw_button("BACK TO MENU", back_y, "back_to_menu", x=back_x, w=back_w, h=back_h)
-
-        # store for input handling
         self._enter_name_input_box = input_box
         self._enter_name_available_width = available_width
         self._enter_name_padding_x = padding_x
 
-    # Prologue
     def start_prologue(self, player_name):
         self.player_name = player_name.strip() if player_name.strip() else "Arthan"
         self.prologue_scenes = []
@@ -1211,14 +1205,15 @@ class AdventureQuiz(tk.Tk):
         panel_w, panel_h = WIDTH - 2*PANEL_MARGIN, HEIGHT - 2*PANEL_MARGIN
         for s in self.prologue_scenes:
             try: self._get_tk_image_for_panel(s['img'], panel_w, panel_h)
-            except Exception as e: print("preload image failed for", s['img'], e)
+            except Exception as e: pass
         if not self.scene_done and self.scene_text_full:
             self._schedule_type_step(0)
 
     def _schedule_type_step(self, delay_ms):
         if self._type_after_id:
             try: self.after_cancel(self._type_after_id)
-            except Exception: pass
+            except Exception:
+                pass
         self._type_after_id = self.after(delay_ms, self._typewriter_step)
 
     def _typewriter_step(self):
@@ -1244,25 +1239,194 @@ class AdventureQuiz(tk.Tk):
         if ch in ".!?": delay = PUNCT_DELAY
         elif ch == "\n": delay = NEWLINE_DELAY
         self._schedule_type_step(delay)
+   
+    def start_final_typing(self):
+        raw_player = (self.player_name or "friend")
+        player = "".join(ch for ch in raw_player if ch.isprintable()).strip()[:18]
+        player = player.title()
 
-    def _advance_scene(self):
-        if self.scene_index + 1 >= len(self.prologue_scenes):
+        # final text 
+        self.final_text_full = f"It\'s over, {player}\nYour courage freed me"
+        self.final_text_shown = ""
+        self.final_char_idx = 0
+        self.final_done = False
+
+        try:
             if pygame_available:
-                try:
-                    pygame.mixer.music.fadeout(800); self.after(850, self._restore_bg_music)
-                except Exception:
-                    self._restore_bg_music()
-            self.state = "help_choice"; self.help_choice_visible = True
-            try: self.start_help_typing()
-            except Exception: pass
+                pygame.mixer.music.stop()
+                if STORY_MUSIC_PATH.exists():
+                    pygame.mixer.music.load(str(STORY_MUSIC_PATH))
+                    pygame.mixer.music.set_volume(0.38)
+                    pygame.mixer.music.play(-1, fade_ms=400)
+        except Exception:
+            pass
+
+        self._schedule_final_type_step(0)
+
+    def _schedule_final_type_step(self, delay_ms):
+        if getattr(self, "_final_after_id", None):
+            try:
+                self.after_cancel(self._final_after_id)
+            except Exception:
+                pass
+        self._final_after_id = self.after(delay_ms, self._final_type_step)
+
+    def _final_type_step(self):
+        self._final_after_id = None
+        text = getattr(self, "final_text_full", "")
+        if self.final_char_idx >= len(text):
+            self.final_done = True
+            try:
+                if pygame_available and story_typing:
+                    story_typing.stop()
+            except Exception:
+                pass
             return
-        self.scene_index += 1; self.scene_char_idx = 0
-        self.scene_text_full = self.prologue_scenes[self.scene_index]['text']; self.scene_text_shown = ""
-        self.scene_done = (len(self.scene_text_full) == 0)
-        if not self.scene_done and self.scene_text_full:
-            self._schedule_type_step(200)
+
+        ch = text[self.final_char_idx]
+        self.final_text_shown += ch
+        self.final_char_idx += 1
+
+        # typing sound loud
+        if ch.strip() and pygame_available:
+            try:
+                if story_typing:
+                    story_typing.set_volume(0.9)
+                    story_typing.stop()
+                    story_typing.play()
+            except Exception:
+                pass
+
+        # slow typing delay
+        if ch in ".!?":
+            delay = 220
+        elif ch == "\n":
+            delay = 260
         else:
-            self.scene_done = True
+            delay = 120
+
+        self._schedule_final_type_step(delay)
+
+    def draw_final_scene(self):
+        try:
+            self.canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill="black")
+        except Exception:
+            self.canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill="black")
+
+        # ==== FIXED FONT SIZES (smaller & fits screen) ====
+        family = self.small_font.cget("family")
+
+        # Smaller headline and sub lines
+        headline_size = max(22, min(40, int(HEIGHT * 0.045)))
+        sub_size = max(14, min(26, int(HEIGHT * 0.032)))
+
+        try:
+            big_font = tkfont.Font(family=family, size=headline_size, weight="bold")
+        except Exception:
+            big_font = self.small_font
+
+        try:
+            sub_font = tkfont.Font(family=family, size=sub_size)
+        except Exception:
+            sub_font = self.small_font
+
+        typed = getattr(self, "final_text_shown", "") or ""
+        lines = typed.split("\n") if typed else [""]
+        total_height = big_font.metrics("linespace") + 12 + (len(lines) - 1) * (sub_font.metrics("linespace") + 8)
+        top_y = max( int(HEIGHT*0.28), (HEIGHT//2) - (total_height//2) )
+
+        if lines:
+            try:
+                self.canvas.create_text(WIDTH//2 + 2, top_y + 2, text=lines[0], font=big_font, fill="#000000")
+                self.canvas.create_text(WIDTH//2, top_y, text=lines[0], font=big_font, fill=WHITE)
+            except Exception:
+                self.canvas.create_text(WIDTH//2, top_y, text=lines[0], font=self.small_font, fill=WHITE)
+        for i, ln in enumerate(lines[1:], start=1):
+            yy = top_y + big_font.metrics("linespace") + 12 + (i-1) * (sub_font.metrics("linespace") + 8)
+            try:
+                self.canvas.create_text(WIDTH//2 + 2, yy + 2, text=ln, font=sub_font, fill="#000000")
+                self.canvas.create_text(WIDTH//2, yy, text=ln, font=sub_font, fill=HOVER_YELLOW)
+            except Exception:
+                self.canvas.create_text(WIDTH//2, yy, text=ln, font=self.small_font, fill=HOVER_YELLOW)
+
+        # Buttons
+        btn_w = max(160, int(WIDTH * 0.16))
+        btn_h = max(56, int(HEIGHT * 0.085))
+        btn_y = HEIGHT - btn_h - 40
+        left_x = 80
+        right_x = WIDTH - btn_w - 80
+
+        self.draw_button("EXIT", btn_y, "exit_game", x=left_x, w=btn_w, h=btn_h)
+        self.draw_button("PLAY AGAIN", btn_y, "play_again", x=right_x, w=btn_w, h=btn_h)
+
+    def start_final_typing(self):
+        player = (self.player_name or "FRIEND").strip().upper()
+        self.final_text_full = f"It\'s over, {player}\nYour courage freed me"
+        self.final_text_shown = ""
+        self.final_char_idx = 0
+        self.final_done = False
+
+        try:
+            if pygame_available:
+                pygame.mixer.music.stop()
+                if STORY_MUSIC_PATH.exists():
+                    pygame.mixer.music.load(str(STORY_MUSIC_PATH))
+                    pygame.mixer.music.set_volume(0.38)
+                    pygame.mixer.music.play(-1, fade_ms=400)
+        except Exception:
+            pass
+
+        self._schedule_final_type_step(0)
+
+    def _schedule_final_type_step(self, delay_ms):
+        if getattr(self, "_final_after_id", None):
+            try:
+                self.after_cancel(self._final_after_id)
+            except Exception:
+                pass
+        self._final_after_id = self.after(delay_ms, self._final_type_step)
+
+    def _final_type_step(self):
+        self._final_after_id = None
+        text = getattr(self, "final_text_full", "")
+        if self.final_char_idx >= len(text):
+            self.final_done = True
+            try:
+                if pygame_available and story_typing:
+                    story_typing.stop()
+            except Exception:
+                pass
+            return
+
+        ch = text[self.final_char_idx]
+        self.final_text_shown += ch
+        self.final_char_idx += 1
+
+        try:
+            if ch.strip() and pygame_available:
+                if story_typing:
+                    story_typing.stop()
+                    story_typing.play()
+        except Exception:
+            pass
+
+        if ch in ".!?":
+          delay = 220        
+        elif ch == "\n":
+          delay = 260        
+        else:
+          delay = 120       
+
+
+        self._schedule_final_type_step(delay)
+  
+    def _restore_bg_music(self):
+        if pygame_available:
+            try:
+                if BG_MUSIC_PATH.exists():
+                    pygame.mixer.music.stop(); pygame.mixer.music.load(str(BG_MUSIC_PATH)); pygame.mixer.music.set_volume(0.25); pygame.mixer.music.play(-1, fade_ms=800)
+            except Exception:
+                pass
 
     def _restore_bg_music(self):
         if pygame_available:
@@ -1281,8 +1445,7 @@ class AdventureQuiz(tk.Tk):
         tkimg = self._get_tk_image_for_panel(img_path, panel_w, panel_h)
         if tkimg:
             try: self.canvas.create_image(panel_x, panel_y, image=tkimg, anchor="nw")
-            except Exception as e:
-                print("draw_prologue create_image failed:", e); self.canvas.create_rectangle(panel_x, panel_y, panel_x+panel_w, panel_y+panel_h, fill="#001020")
+            except Exception: self.canvas.create_rectangle(panel_x, panel_y, panel_x+panel_w, panel_y+panel_h, fill="#001020")
         else:
             self.canvas.create_rectangle(panel_x, panel_y, panel_x+panel_w, panel_y+panel_h, fill="#001020")
             debug_msg = "[no image]" if img_path is None else f"[missing: {str(img_path)}]"
@@ -1291,7 +1454,6 @@ class AdventureQuiz(tk.Tk):
         skip_x = panel_x + panel_w - skip_w - 40; skip_y = panel_y + 30
         self.canvas.create_text(skip_x, skip_y, anchor="nw", text=skip_text, font=self.small_font, fill=HOVER_YELLOW)
         self.click_areas["prologue_skip"] = (skip_x - 6, skip_y - 6, skip_x + skip_w + 6, skip_y + 26)
-
         text_pad_x = 80; text_pad_y = panel_y + panel_h - 180; max_text_w = panel_w - text_pad_x*2
         lines = wrap_text_to_lines(self.small_font, self.scene_text_shown, max_text_w)
         line_h = self.small_font.metrics("linespace") + 8
@@ -1300,7 +1462,6 @@ class AdventureQuiz(tk.Tk):
             tx = panel_x + text_pad_x; ty = text_pad_y + i*line_h
             self.canvas.create_text(tx+2, ty+2, anchor="nw", text=ln, font=self.small_font, fill="#000000")
             self.canvas.create_text(tx, ty, anchor="nw", text=ln, font=self.small_font, fill=WHITE)
-
         cont_text = ">> continue" if self.scene_done else "..."
         cont_w = self.small_font.measure(cont_text)
         cont_x = panel_x + panel_w - cont_w - 60; cont_y = panel_y + panel_h - 60
@@ -1312,6 +1473,46 @@ class AdventureQuiz(tk.Tk):
         else:
             if "prologue_continue" in self.click_areas:
                 del self.click_areas["prologue_continue"]
+    
+    def _advance_scene(self):
+        """Advance to the next prologue scene or move to help_choice when done."""
+        # Stop typing effect 
+        try:
+            if self._type_after_id:
+                self.after_cancel(self._type_after_id)
+                self._type_after_id = None
+        except Exception:
+            pass
+
+        # Move to next scene
+        self.scene_index += 1
+
+        # If all scenes are done 
+        if self.scene_index >= len(self.prologue_scenes):
+            try:
+                if pygame_available and story_typing:
+                    story_typing.stop()
+            except Exception:
+                pass
+
+            self.state = "help_choice"
+            self.help_choice_visible = True
+            self.help_happy_shown = False
+            self.start_help_typing()
+            return
+
+        # Load next scene text
+        self.scene_text_full = self.prologue_scenes[self.scene_index]['text']
+        self.scene_text_shown = ""
+        self.scene_char_idx = 0
+
+        # If this scene has no text
+        if len(self.scene_text_full.strip()) == 0:
+            self.scene_done = True
+        else:
+            self.scene_done = False
+            self._schedule_type_step(0)
+
 
     def start_help_typing(self, player=None):
         player = player or self.player_name or "(name)"
@@ -1371,8 +1572,6 @@ class AdventureQuiz(tk.Tk):
         char_box_w, char_box_h = 300, 360; char_x = panel_x + PAD + 12; char_y = center_y - (char_box_h // 2)
         self.canvas.create_rectangle(char_x - 6, char_y - 6, char_x + char_box_w + 6, char_y + char_box_h + 6, fill=BORDER, outline=BORDER)
         self.canvas.create_rectangle(char_x, char_y, char_x + char_box_w, char_y + char_box_h, fill=WHITE, outline=ORANGE, width=3)
-
-        # animated cry image
         if PIL_AVAILABLE and getattr(self, "cry_frames", None):
             try:
                 frame = self.cry_frames[self.cry_frame_index]
@@ -1408,13 +1607,10 @@ class AdventureQuiz(tk.Tk):
             if hero_tk: self.canvas.create_image(char_x + char_box_w//2, char_y + char_box_h // 2, image=hero_tk, anchor="center")
         else:
             self.canvas.create_text(char_x + char_box_w // 2, char_y + char_box_h // 2, text="(no sprite)", fill=ORANGE)
-
-        # dialog panel 
         text_box_w = 880; text_box_h = 520; text_x = char_x + char_box_w + GAP_BETWEEN; text_y = center_y - (text_box_h // 2) - 10
         self.canvas.create_rectangle(text_x - 8, text_y - 8, text_x + text_box_w + 8, text_y + text_box_h + 8, fill=BORDER, outline=BORDER)
         self.canvas.create_rectangle(text_x, text_y, text_x + text_box_w, text_y + text_box_h, fill=BLACK, outline=ORANGE, width=4)
         dialog_pad_x, dialog_pad_y = 40, 40; effective_width = text_box_w - (dialog_pad_x * 2)
-
         typed = getattr(self, "help_text_shown", None)
         if typed is None or typed == "":
             player = self.player_name or "(name)"; full_dialog = (
@@ -1424,7 +1620,6 @@ class AdventureQuiz(tk.Tk):
             lines = wrap_text_to_lines(self.small_font, full_dialog, effective_width)
         else:
             lines = wrap_text_to_lines(self.small_font, typed, effective_width)
-
         line_h = self.small_font.metrics("linespace") + 9; max_lines_fit = max(1, (text_box_h - (dialog_pad_y * 2)) // line_h)
         lines = lines[:max_lines_fit]
         tx = text_x + dialog_pad_x; ty = text_y + dialog_pad_y
@@ -1432,17 +1627,13 @@ class AdventureQuiz(tk.Tk):
             self.canvas.create_text(tx+2, ty+2, anchor="nw", text=ln, font=self.small_font, fill="#000000")
             self.canvas.create_text(tx, ty, anchor="nw", text=ln, font=self.small_font, fill=WHITE)
             ty += line_h
-
-        # yes btn
         btn_w = 120; btn_h = 45
         by = text_y + text_box_h - btn_h - 13
         left_btn_x  = text_x + 80
         right_btn_x = text_x + text_box_w - btn_w - 80
-
         if "help_yes" in self.click_areas and not self.help_done:
             try: del self.click_areas["help_yes"]
             except: pass
-            
         if getattr(self, "help_done", False):
             self.draw_button("YES", by, "help_yes", x=right_btn_x, w=btn_w, h=btn_h)
 
@@ -1454,8 +1645,6 @@ class AdventureQuiz(tk.Tk):
         char_box_w, char_box_h = 300, 360; char_x = panel_x + PAD + 12; char_y = center_y - (char_box_h // 2)
         self.canvas.create_rectangle(char_x - 6, char_y - 6, char_x + char_box_w + 6, char_y + char_box_h + 6, fill=BORDER, outline=BORDER)
         self.canvas.create_rectangle(char_x, char_y, char_x + char_box_w, char_y + char_box_h, fill=WHITE, outline=ORANGE, width=3)
-
-        # Animated happy gif
         if PIL_AVAILABLE and getattr(self, "happy_frames", None):
             try:
                 frame = self.happy_frames[self.happy_frame_index]
@@ -1469,7 +1658,6 @@ class AdventureQuiz(tk.Tk):
                 cx = char_x + char_box_w // 2; cy = char_y + char_box_h // 2
                 self.canvas.create_image(cx, cy, image=self._happy_tk, anchor="center")
             except Exception:
-                # fallback 
                 try:
                     if getattr(self, "_happy_pil", None):
                         self._happy_tk = self._get_resized_photo(self._happy_pil, "happy_resized", char_box_w - 24, char_box_h - 24)
@@ -1492,12 +1680,10 @@ class AdventureQuiz(tk.Tk):
             if hero_tk: self.canvas.create_image(char_x + char_box_w//2, char_y + char_box_h//2, image=hero_tk, anchor="center")
         else:
             self.canvas.create_text(char_x + char_box_w//2, char_y + char_box_h//2, text="(no sprite)", fill=ORANGE)
-
         text_box_w = 880; text_box_h = 520; text_x = char_x + char_box_w + GAP_BETWEEN; text_y = center_y - (text_box_h // 2) - 10
         self.canvas.create_rectangle(text_x - 8, text_y - 8, text_x + text_box_w + 8, text_y + text_box_h + 8, fill=BORDER, outline=BORDER)
         self.canvas.create_rectangle(text_x, text_y, text_x + text_box_w, text_y + text_box_h, fill=BLACK, outline=ORANGE, width=4)
         dialog_pad_x, dialog_pad_y = 40, 40; effective_width = text_box_w - (dialog_pad_x * 2)
-        # happy dialog
         typed = getattr(self, "help_text_shown", "")
         if typed is None or typed == "":
             lines = []
@@ -1508,7 +1694,6 @@ class AdventureQuiz(tk.Tk):
         for ln in lines:
             self.canvas.create_text(tx+2, ty+2, anchor="nw", text=ln, font=self.small_font, fill="#000000")
             self.canvas.create_text(tx, ty, anchor="nw", text=ln, font=self.small_font, fill=WHITE); ty += line_h
-
         btn_w, btn_h = 220, 64; by = text_y + text_box_h - btn_h - 28
         left_btn_x = text_x + 60; right_btn_x = text_x + text_box_w - btn_w - 60
         self.draw_button("START GAME", by, "start_game", x=left_btn_x, w=btn_w, h=btn_h)
@@ -1531,7 +1716,6 @@ class AdventureQuiz(tk.Tk):
                 cx = char_x + char_box_w // 2; cy = char_y + char_box_h // 2; self.canvas.create_image(cx, cy, image=self.hero_intro_tk, anchor="center")
         else:
             self.canvas.create_text(char_x + char_box_w//2, char_y + char_box_h//2, text="(no sprite)", fill=ORANGE)
-
         text_box_w = 880; text_box_h = 520; text_x = char_x + char_box_w + GAP_BETWEEN; text_y = center_y - (text_box_h // 2) - 10
         self.canvas.create_rectangle(text_x - 8, text_y - 8, text_x + text_box_w + 8, text_y + text_box_h + 8, fill=BORDER, outline=BORDER)
         self.canvas.create_rectangle(text_x, text_y, text_x + text_box_w, text_y + text_box_h, fill=BLACK, outline=ORANGE, width=4)
@@ -1545,7 +1729,6 @@ class AdventureQuiz(tk.Tk):
         for ln in lines:
             self.canvas.create_text(tx+2, ty+2, anchor="nw", text=ln, font=self.small_font, fill="#000000")
             self.canvas.create_text(tx, ty, anchor="nw", text=ln, font=self.small_font, fill=WHITE); ty += line_h
-
         btn_w = 160; btn_h = 54; center_x = text_x + (text_box_w // 2); by = text_y + text_box_h - btn_h - 32
         self.draw_button("START  GAME", by, "start_game", x=center_x - btn_w - 30, w=btn_w, h=btn_h)
         self.draw_button("BACK", by, "intro_back", x=center_x + 30, w=btn_w, h=btn_h)
@@ -1557,41 +1740,20 @@ class AdventureQuiz(tk.Tk):
 
         try:
             if getattr(self, "_door_bg_tk", None):
-                # Draw the preloaded background image
-                self.canvas.create_image(
-                    panel_x,
-                    panel_y,
-                    image=self._door_bg_tk,
-                    anchor="nw"
-                )
+                self.canvas.create_image(panel_x, panel_y, image=self._door_bg_tk, anchor="nw")
             else:
-                self.canvas.create_rectangle(
-                    panel_x,
-                    panel_y,
-                    panel_x + panel_w,
-                    panel_y + panel_h,
-                    fill="#000000",
-                    outline=BORDER,
-                    width=BORDER_W
-                )
-                print("draw_hallway: _door_bg_tk is missing. Background not loaded.")
-
+                self.canvas.create_rectangle(panel_x, panel_y, panel_x + panel_w, panel_y + panel_h, fill="#000000", outline=BORDER, width=BORDER_W)
         except Exception as e:
             print("draw_hallway error:", e)
             try:
-                self.canvas.create_rectangle(
-                    panel_x, panel_y,
-                    panel_x + panel_w, panel_y + panel_h,
-                    fill="#000000", outline=BORDER, width=BORDER_W
-                )
+                self.canvas.create_rectangle(panel_x, panel_y, panel_x + panel_w, panel_y + panel_h, fill="#000000", outline=BORDER, width=BORDER_W)
             except Exception:
                 pass
 
-        # dynamic layout 
         num_doors = 5
         door_w = 180
         door_h = 360
-        total_width = num_doors * door_w + (num_doors - 1) * 48 
+        total_width = num_doors * door_w + (num_doors - 1) * 48
         start_x = panel_x + max(40, (panel_w - total_width) // 2)
         dy = panel_y + 120
         self.door_geo = {}
@@ -1601,8 +1763,8 @@ class AdventureQuiz(tk.Tk):
             self.door_geo[idx] = (x, dy, door_w, door_h)
 
         def door_img(which, completed=False, locked=False):
-            x,y,w,h = self.door_geo[which]; img = None
-
+            x, y, w, h = self.door_geo[which]
+            img = None
             if PIL_AVAILABLE:
                 if getattr(self, "door_opening", None) == which and self.door_open_img is not None:
                     img = self._get_resized_photo(self.door_open_img, f"opening{which}", w, h)
@@ -1610,59 +1772,67 @@ class AdventureQuiz(tk.Tk):
                     img = self._get_resized_photo(self.door_open_img, f"open{which}", w, h)
                 elif self.door_closed_img is not None:
                     img = self._get_resized_photo(self.door_closed_img, f"closed{which}", w, h)
+
             if img is not None:
-                self.canvas.create_image(x + w//2, y + h//2, image=img)
+                self.canvas.create_image(x + w // 2, y + h // 2, image=img)
             else:
-                self.canvas.create_rectangle(x-4, y-4, x+w+4, y+h+4, fill=BORDER, outline=BORDER)
-                self.canvas.create_rectangle(x, y, x+w, y+h, fill=BLACK, outline=ORANGE, width=3)
-                ax, ay = x+int(w*0.2), y+int(h*0.15); ax2, ay2 = x+int(w*0.8), y+int(h*0.85)
+                self.canvas.create_rectangle(x - 4, y - 4, x + w + 4, y + h + 4, fill=BORDER, outline=BORDER)
+                self.canvas.create_rectangle(x, y, x + w, y + h, fill=BLACK, outline=ORANGE, width=3)
+                ax, ay = x + int(w * 0.2), y + int(h * 0.15)
+                ax2, ay2 = x + int(w * 0.8), y + int(h * 0.85)
                 self.canvas.create_arc(ax, ay, ax2, ay2, start=0, extent=180, style="arc", outline=ORANGE, width=3)
 
             try:
-                door_label_font = tkfont.Font(family=self.small_font.cget("family"),
-                                             size=max(14, int(self.small_font.cget("size")) + 0),
-                                             weight="bold")
+                door_label_font = tkfont.Font(
+                    family=self.small_font.cget("family"),
+                    size=max(14, int(self.small_font.cget("size")) + 0),
+                    weight="bold"
+                )
             except Exception:
                 door_label_font = self.small_font
 
-            label = f"Quiz #{which}"
-            label_x = x + w // 2
-            label_y = y + h // 2 - int(h * 0.55)
+            try:
+                stage_number = (6 - which)
+                stage_label = f"STAGE {stage_number}"
+                label_x = x + w // 2
+                label_y = y - 40  
+              
+                if completed:
+                    stage_color = HOVER_YELLOW
+                elif locked:
+                    stage_color = ORANGE
+                else:
+                    stage_color = WHITE
 
+                self.canvas.create_text(label_x + 1, label_y + 1, text=stage_label, font=door_label_font, fill="#000000")
+                self.canvas.create_text(label_x, label_y, text=stage_label, font=door_label_font, fill=stage_color)
+            except Exception:
+                self.canvas.create_text(x + w // 2, y - 40, text=f"STAGE {(6 - which)}", font=self.small_font, fill=HOVER_YELLOW)
+
+            # (ENTER / LOCKED / COMPLETED)
             if completed:
-                label_color = HOVER_YELLOW
+                self.canvas.create_text(x + w // 2, y + h + 24, text="COMPLETED", fill=HOVER_YELLOW, font=self.small_font)
             elif locked:
-                label_color = ORANGE
+                self.canvas.create_text(x + w // 2, y + h + 24, text="LOCKED", fill=ORANGE, font=self.small_font)
             else:
-                label_color = WHITE
+                self.canvas.create_text(x + w // 2, y + h + 24, text="ENTER", fill=WHITE, font=self.small_font)
 
-
-            if completed:
-                self.canvas.create_text(x+w//2, y+h+24, text="COMPLETED", fill=HOVER_YELLOW, font=self.small_font)
-            elif locked:
-                self.canvas.create_text(x+w//2, y+h+24, text="LOCKED", fill=ORANGE, font=self.small_font)
-            else:
-                self.canvas.create_text(x+w//2, y+h+24, text="ENTER", fill=WHITE, font=self.small_font)
+            # click area 
             if not locked and not self.animating:
-                self.click_areas[f"door{which}"] = (x, y, x+w, y+h)
+                self.click_areas[f"door{which}"] = (x, y, x + w, y + h)
 
-
-        # draw each door
         for i in range(1, 6):
             completed = (i in self.completed)
             locked = (i not in self.unlocked)
             door_img(i, completed=completed, locked=locked)
+
         if 1 in self.door_geo:
             x, y, w, h = self.door_geo[1]
-            # hero feet aligned
             self.hero_y = y + h - (self.hero_h // 2) + 20
 
-
         # hero drawing 
-        if self.hero_visible and self.hero_img is not None and PIL_AVAILABLE and self.hero_opacity > 0.0:
-           
+        if self.hero_visible and self.hero_img is not None and PIL_AVAILABLE:
             try:
-                
                 panel_bottom = panel_y + panel_h
                 door_bottoms = [self.door_geo[i][1] + self.door_geo[i][3] for i in self.door_geo]
                 baseline_bottom = max(door_bottoms) if door_bottoms else (panel_bottom - 20)
@@ -1670,17 +1840,14 @@ class AdventureQuiz(tk.Tk):
             except Exception:
                 hero_bottom_y = panel_y + panel_h - 8
 
-        
-            pil_with_op = self._apply_opacity(self.hero_img, self.hero_opacity)
-            hero_key = f"hero_op_{int(self.hero_opacity*100)}"
-            hero_w = min(self.hero_w, int(door_w * 1.05))
-            hero_h = min(self.hero_h, int(door_h * 1.15))
+            # draw hero at full opacity 
+            pil_with_op = self.hero_img
+            hero_key = "hero_full"
+            hero_w = min(self.hero_w, int(w * 1.05))
+            hero_h = min(self.hero_h, int(h * 1.15))
             hero_tk = self._get_resized_photo(pil_with_op, hero_key, hero_w, hero_h)
             if hero_tk:
                 self.canvas.create_image(self.hero_x, hero_bottom_y, image=hero_tk, anchor="s")
-        else:
-            pass
-
 
         self.draw_button("EXIT", panel_y + panel_h - 100, "exit_game", x=panel_x + panel_w - 220, w=200, h=60)
 
@@ -1718,60 +1885,36 @@ class AdventureQuiz(tk.Tk):
         self.canvas.create_text(70, opt_area_top + opt_h*2 + opt_gap_y + 16, anchor="nw", text=status, fill=ORANGE, font=self.small_font)
 
     def draw_ending(self):
-        """
-        GAME OVER screen showing only the animated fullscreen GIF
-        and two buttons at the bottom.
-
-        - If player collected all keys -> left: EXIT, right: DONE (DONE uses existing 'back_to_menu' tag).
-        - Otherwise -> left: PLAY AGAIN, right: EXIT (same as before).
-        """
-       # animated full screen gif
         try:
             if self.ending_frames:
                 frame = self.ending_frames[self.ending_frame_index]
                 iw, ih = frame.size
-
-                scale = max(WIDTH / max(1, iw), HEIGHT / max(1, ih))
+                scale = max(1.0, max(WIDTH / max(1, iw), HEIGHT / max(1, ih)))
                 new_w = int(iw * scale)
                 new_h = int(ih * scale)
-
                 resized = frame.resize((new_w, new_h), Image.LANCZOS)
-
                 left = max(0, (new_w - WIDTH) // 2)
                 top = max(0, (new_h - HEIGHT) // 2)
                 cropped = resized.crop((left, top, left + WIDTH, top + HEIGHT))
-
                 self._ending_tk = ImageTk.PhotoImage(cropped)
                 self.canvas.create_image(0, 0, image=self._ending_tk, anchor="nw")
             else:
                 self.canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill="black")
-        except Exception:
+        except Exception as e:
+            print("draw_ending error:", e)
             self.canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill="black")
 
-        # buttond
-        btn_w = 200
-        btn_h = 60
-        btn_y = HEIGHT - btn_h - 40  
-        left_margin = 80
-        right_margin = 80
-
-        # player collecter keys
-        total_keys_needed = len(questions)
-        has_all_keys = (getattr(self, "keys_collected", 0) >= total_keys_needed) or (len(self.completed) >= total_keys_needed)
-
-        if has_all_keys:
-            left_x = left_margin
-            right_x = WIDTH - btn_w - right_margin
-            self.draw_button("EXIT", btn_y, "exit_game", x=left_x, w=btn_w, h=btn_h)
-            self.draw_button("PLAY AGAIN", btn_y, "back_to_menu", x=right_x, w=btn_w, h=btn_h)
-        else:
-            
-            total_buttons_w = btn_w * 2 + 60 
-            start_x = (WIDTH - total_buttons_w) // 2
-            gap = 60
-            self.draw_button("PLAY AGAIN", btn_y, "play_again", x=start_x, w=btn_w, h=btn_h)
-            self.draw_button("EXIT", btn_y, "exit_game", x=start_x + btn_w + gap, w=btn_w, h=btn_h)
-
+        # Buttons only 
+        btn_w = max(160, int(WIDTH * 0.16))
+        btn_h = max(56, int(HEIGHT * 0.085))
+        btn_y = HEIGHT - btn_h - 40
+        left_x = 80
+        right_x = WIDTH - btn_w - 80
+        self.draw_button("EXIT", btn_y, "exit_game", x=left_x, w=btn_w, h=btn_h)
+        total_questions = len(questions)
+        all_answered = (int(getattr(self, "keys_collected", 0)) >= total_questions)
+        self.draw_button("DONE", btn_y, "done_end", x=right_x, w=btn_w, h=btn_h)
+   
 
 
     def draw_leaderboards(self):
@@ -1779,19 +1922,10 @@ class AdventureQuiz(tk.Tk):
         self.canvas.create_rectangle(box_x-6, box_y-6, box_x+box_w+6, box_y+box_h+6, fill=BORDER)
         self.canvas.create_rectangle(box_x, box_y, box_x+box_w, box_y+box_h, fill=BLACK)
         self.canvas.create_text(WIDTH//2, box_y+40, text="LEADERBOARDS", font=self.title_font, fill=ORANGE)
-
-        header_font = tkfont.Font(family=self.small_font.cget("family"),
-                                  size=max(18, int(self.small_font.cget("size")) + 2),
-                                  weight="bold")
-        body_font = tkfont.Font(family=self.small_font.cget("family"),
-                                size=self.small_font.cget("size"))
-
+        header_font = tkfont.Font(family=self.small_font.cget("family"), size=max(18, int(self.small_font.cget("size")) + 2), weight="bold")
+        body_font = tkfont.Font(family=self.small_font.cget("family"), size=self.small_font.cget("size"))
         entries = load_leaderboard() or []
-
-       
         entries = sorted(entries, key=lambda e: (-int(e.get("score", 0)), e.get("ts", "")))
-
-        # ranks
         ranks = []
         prev_score = None
         prev_rank = 0
@@ -1806,61 +1940,40 @@ class AdventureQuiz(tk.Tk):
             ranks.append(rank)
             prev_score = sc
             prev_rank = rank
-
-        # combine entries with ranks
         ranked_entries = []
         for e, r in zip(entries, ranks):
             e_copy = dict(e)
             e_copy["_rank"] = r
             ranked_entries.append(e_copy)
-
-        # Only show top N rows 
         TOP_N = 10
         visible = ranked_entries[:TOP_N]
-
         headers = ["#", "Name", "Lives", "Keys"]
         header_y = box_y + 100
-
         left_margin = box_x + 36
         right_margin = box_x + box_w - 36
         line_h = body_font.metrics("linespace") + 10
-
-        # measure column widths dynamically
         rank_w = max(header_font.measure("#"), body_font.measure("999.")) + 12
-        # approximate numeric columns width
         keys_w = max(header_font.measure("Keys"), max((body_font.measure(str(e.get("keys",0))) for e in visible), default=body_font.measure("0"))) + 18
         lives_w = max(header_font.measure("Lives"), max((body_font.measure(str(e.get("lives",0))) for e in visible), default=body_font.measure("0"))) + 18
-
-        # gap between numeric columns and name area
         gap_between_numeric = 120
         numeric_total = keys_w + lives_w + gap_between_numeric
-
-        # available width for name column 
         available_for_name = (box_x + box_w - 40) - (left_margin + rank_w + numeric_total)
         min_name_space = 120
         allowed_name_w = max(min_name_space, available_for_name)
-
-        # compute X positions
         rank_x = left_margin
         name_x = rank_x + rank_w + 180
         keys_right = box_x + box_w - 100
         lives_right = keys_right - keys_w - (gap_between_numeric // 1)
-
-        # draw headers
         self.canvas.create_text(rank_x, header_y, anchor="w", text=headers[0], font=header_font, fill=HOVER_YELLOW)
         self.canvas.create_text(name_x, header_y, anchor="w", text=headers[1], font=header_font, fill=HOVER_YELLOW)
         self.canvas.create_text(keys_right, header_y, anchor="e", text=headers[3], font=header_font, fill=HOVER_YELLOW)
         self.canvas.create_text(lives_right, header_y, anchor="e", text=headers[2], font=header_font, fill=HOVER_YELLOW)
-
-        # ordinal helper
         def ordinal(n):
             if 10 <= (n % 100) <= 20:
                 suf = "th"
             else:
                 suf = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
             return f"{n}{suf}"
-
-        # draw visible rows
         start_y = header_y + 36
         for i, e in enumerate(visible):
             y = start_y + i * line_h
@@ -1869,26 +1982,19 @@ class AdventureQuiz(tk.Tk):
             raw_name = e.get("name", "Unknown")
             keys_text = str(e.get("keys", 0))
             lives_text = str(e.get("lives", 0))
-
-            # truncate name to allowed width
             name_disp = raw_name
             if body_font.measure(name_disp) > allowed_name_w:
                 while name_disp and body_font.measure(name_disp + "...") > allowed_name_w:
                     name_disp = name_disp[:-1]
                 name_disp = name_disp + "..."
-
-            # draw rank and name
             self.canvas.create_text(rank_x, y, anchor="w", text=rank_text, font=body_font, fill=WHITE)
             self.canvas.create_text(name_x, y, anchor="w", text=name_disp, font=body_font, fill=WHITE)
-
-            # draw medals based on numeric rank
             medal_size = max(50, int(line_h * 0.85))
             medal_map = {1: "gold", 2: "silver", 3: "bronze"}
             med = medal_map.get(rank_num)
             if med:
                 pil_medal = self._medal_pils.get(med)
                 if pil_medal:
-                    # place medal right after the name text
                     name_width_px = body_font.measure(name_disp)
                     medal_x = name_x + name_width_px + 35
                     try:
@@ -1898,34 +2004,25 @@ class AdventureQuiz(tk.Tk):
                             self.canvas.create_image(medal_x, y - (medal_size//6), image=medal_tk, anchor="w")
                     except Exception:
                         pass
-
-            # numeric columns 
             self.canvas.create_text(lives_right, y, anchor="e", text=lives_text, font=body_font, fill=WHITE)
             self.canvas.create_text(keys_right, y, anchor="e", text=keys_text, font=body_font, fill=WHITE)
-
         if not entries:
             self.canvas.create_text(WIDTH//2, box_y + box_h//2, text="No scores yet.", font=self.small_font, fill=WHITE)
-
-        # buttons at bottom
         btn_w = 360
         btn_h = 55
         gap = 28
         total_w = btn_w * 2 + gap
         start_x = box_x + max(20, (box_w - total_w) // 2)
         btn_y = box_y + box_h - 70
-
         if start_x + total_w > box_x + box_w - 20:
             avail = box_w - 80 - gap
             btn_w = max(140, int(avail // 2))
             total_w = btn_w * 2 + gap
             start_x = box_x + (box_w - total_w) // 2
-
         clear_x = start_x
         back_x = start_x + btn_w + gap
-
         self.draw_button("CLEAR LEADERBOARD", btn_y, "clear_leaderboard", x=clear_x, w=btn_w, h=btn_h)
         self.draw_button("BACK TO MENU", btn_y, "back_to_menu", x=back_x, w=btn_w, h=btn_h)
-
 
     def redraw(self):
         self.clear(); self._draw_background()
@@ -1944,6 +2041,8 @@ class AdventureQuiz(tk.Tk):
         elif self.state == "stage4": self.draw_stage(3, self.answer_input)
         elif self.state == "stage5": self.draw_stage(4, self.answer_input)
         elif self.state == "ending": self._maybe_save_score(); self.draw_ending()
+        elif self.state == "final_scene":
+            self.draw_final_scene()
         elif self.state == "leaderboards": self.draw_leaderboards()
         else: self.draw_menu()
         self.after(33, self.redraw)
@@ -1952,87 +2051,81 @@ class AdventureQuiz(tk.Tk):
         self.cursor_visible = not self.cursor_visible; self.after(500, self._blink_loop)
 
     def _apply_opacity(self, pil_img, opacity):
-        """Return a copy of pil_img with its alpha channel multiplied by opacity (0..1)."""
         try:
             if pil_img is None:
                 return None
             im = pil_img.copy()
             if im.mode != "RGBA":
                 im = im.convert("RGBA")
-            # multiply alpha
             alpha = im.split()[3].point(lambda p: int(p * opacity))
             im.putalpha(alpha)
             return im
-        except Exception as e:
-            # fallback: return original
+        except Exception:
             return pil_img
 
     def _fade_in_hero(self):
-        """Simple incremental fade for hero_opacity; clears cached hero images so PhotoImage is updated."""
         try:
-            step = 1.0 / max(1, int(self.hero_fade_steps))
-            self.hero_opacity = min(1.0, self.hero_opacity + step)
-            keys_to_remove = [k for k in list(self._img_cache.keys()) if isinstance(k, tuple) and str(k[0]).find("hero") != -1]
-            for k in keys_to_remove:
-                try: del self._img_cache[k]
-                except: pass
-            if self.hero_opacity < 1.0:
-                self.after(40, self._fade_in_hero)
+            self.hero_opacity = 1.0
         except Exception:
             pass
 
+
     def animate_to_door(self, which):
-        """Walk the hero to the CENTER of the selected door."""
         if which not in self.door_geo:
             return
-
-        # Get door's geometry
         x, y, w, h = self.door_geo[which]
+        INSIDE_OFFSET_RATIO = 0.58
 
-        # Hero moves to the horizontal center of the door
-        target_center_x = x + (w // 2)
+        # Desired target 
+        desired_x = x + int(w * INSIDE_OFFSET_RATIO)
 
-        # Set target and start animation
-        self.hero_target_x = target_center_x
+        # fully visible on-screen
+        hero_half = int(getattr(self, "hero_w", 180) / 2)
+        panel_x = PANEL_MARGIN
+        panel_w = WIDTH - 2 * PANEL_MARGIN
+        min_allowed = panel_x + hero_half + 8
+        max_allowed = panel_x + panel_w - hero_half - 8
+        door_min = x + hero_half + 4
+        door_max = x + w - hero_half - 4
+
+        # clamp 
+        target_x = max(min_allowed, min(max_allowed, desired_x))
+        target_x = max(door_min, min(door_max, target_x))
+        self.hero_target_x = int(target_x)
         self.animating = True
         self.anim_target_door = which
         self.state = "anim_walk"
-
-        # Make sure door opening animation is reset
         self.door_opening = None
 
-        # Begin walking steps
+        try:
+            self.hero_y = y + h - (self.hero_h // 2) + 6
+        except Exception:
+            pass
+
         self._walk_step()
 
-
     def _walk_step(self):
-        """Walking loop: move hero by small steps at delay self._walk_delay for smoother motion."""
         if not self.animating:
             return
         dx = self.hero_target_x - self.hero_x
         step = self.hero_speed
         if abs(dx) <= step:
-
             self.hero_x = self.hero_target_x
             self.state = "anim_open"
             self._open_door_then_enter(self.anim_target_door)
             return
-        
         if dx < 0:
-            self.hero_x += -min(abs(dx), step) 
+            self.hero_x += -min(abs(dx), step)
         else:
-            self.hero_x += min(abs(dx), step)   
-
+            self.hero_x += min(abs(dx), step)
         try:
             self.after(self._walk_delay, self._walk_step)
         except Exception:
             self.after(24, self._walk_step)
 
     def _open_door_then_enter(self, which):
-        """Show opening door image while hero stands at the door, then switch to the stage."""
         self.door_opening = which
-    
-        def proceed(): 
+        def proceed():
             self.door_opening = None
             self.animating = False
             self.state = f"stage{which}"
@@ -2127,22 +2220,17 @@ class AdventureQuiz(tk.Tk):
             loader = LoadingScreen(self, duration=2.8, gif_path=LOADING_GIF, jingle_path=LOADING_JINGLE)
             loader.start()
             self.wait_window(loader)
-
             self.state = "hallway"
             self.answer_input = ""
-
-            # start hero
             self.hero_x = WIDTH - 200
-
             self.animating = False
-
             try:
                 self.unlocked.add(5)
             except Exception:
                 self.unlocked = {5}
-
-            self.hero_visible = False
-            self.hero_opacity = 0.0
+            # ALWAYS show the hero 
+            self.hero_visible = True
+            self.hero_opacity = 1.0
 
         elif tag in ("option1","option2","option3","option4"):
             idx = int(tag[-1]) - 1; q_idx = None
@@ -2177,10 +2265,7 @@ class AdventureQuiz(tk.Tk):
                 pass
         elif tag == "prologue_continue":
             self._advance_scene()
-
-        # help choice handlers
         elif tag == "help_yes":
-            # switch to happy screen and start happy typing
             self.state = "help_happy"; self.help_happy_shown = True
             try:
                 self.start_help_happy()
@@ -2192,24 +2277,113 @@ class AdventureQuiz(tk.Tk):
                 try: self.after_cancel(self._help_after_id)
                 except Exception:
                     self._help_after_id = None
-
         elif tag == "play_again":
+            # stop typing 
+            try:
+                if getattr(self, "_final_after_id", None):
+                    self.after_cancel(self._final_after_id)
+                    self._final_after_id = None
+            except Exception:
+                pass
+            try:
+                if getattr(self, "_help_after_id", None):
+                    self.after_cancel(self._help_after_id)
+                    self._help_after_id = None
+            except Exception:
+                pass
+
+            # stop typing sounds
+            try:
+                if pygame_available:
+                    try:
+                        if story_typing: story_typing.stop()
+                    except Exception: pass
+                    try:
+                        if typing_sound: typing_sound.stop()
+                    except Exception: pass
+            except Exception:
+                pass
+
+            try:
+                if pygame_available:
+                    try:
+                        pygame.mixer.music.stop()
+                    except Exception:
+                        pass
+                    try:
+                        self._restore_bg_music()  
+                    except Exception:
+                        try:
+                            if BG_MUSIC_PATH.exists():
+                                pygame.mixer.music.load(str(BG_MUSIC_PATH))
+                                pygame.mixer.music.set_volume(0.25)
+                                pygame.mixer.music.play(-1, fade_ms=800)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
             self.state = "menu"; self.answer_input = ""; self.lives = 3; self.keys_collected = 0; self.completed = set(); self.unlocked = {5}; self.hero_x = 120; self.animating = False; self._score_saved = False
 
+        elif tag == "done_end":
+            try:
+                if getattr(self, "_final_after_id", None):
+                    self.after_cancel(self._final_after_id)
+                    self._final_after_id = None
+            except Exception:
+                pass
+
+            # story-type music
+            try:
+                if pygame_available:
+                    pygame.mixer.music.stop()
+                    if STORY_MUSIC_PATH.exists():
+                        pygame.mixer.music.load(str(STORY_MUSIC_PATH))
+                        pygame.mixer.music.set_volume(0.38)
+                        pygame.mixer.music.play(-1, fade_ms=400)
+            except Exception:
+                pass
+
+            player = (self.player_name or "FRIEND").strip().upper()
+            success = (self.keys_collected >= len(questions) and self.lives > 0)
+
+            if success:
+                self.final_text_full = (
+                    f"It’s over, {player}\n"
+                    "Your courage freed me"
+                )
+            else:
+                self.final_text_full = (
+                    f"It’s over, {player}…\n"
+                    "You fell before reaching the final key,\n"
+                    "but your effort will not be forgotten."
+                )
+
+            self.final_text_shown = ""
+            self.final_char_idx = 0
+            self.final_done = False
+            self.state = "final_scene"
+
+            # typing effect
+            try:
+                self._schedule_final_type_step(0)
+            except Exception:
+                try:
+                    self.start_final_typing()
+                except Exception:
+                    pass
+
+      
         elif tag == "exit_game":
             try:
                 if pygame_available and bg_music_loaded: pygame.mixer.music.stop()
             except Exception:
                 pass
             self.destroy()
-
-        # Leaderboard clear button 
         elif tag == "clear_leaderboard":
             clear_leaderboard_file()
             self.state = "leaderboards"
         elif tag == "confirm_clear_no":
             self.state = "leaderboards"
-
         elif tag.startswith("door"):
             try:
                 which = int(tag.replace("door", ""))
@@ -2217,40 +2391,34 @@ class AdventureQuiz(tk.Tk):
                 which = None
             if which:
                 if which in self.unlocked:
-                    # Reveal & fade hero
                     self.hero_visible = True
-                    self.hero_opacity = 0.0
-                    try:
-                        self._fade_in_hero()
-                    except Exception:
-                        self.hero_opacity = 1.0
+                    self.hero_opacity = 1.0
 
                     try:
                         panel_x = PANEL_MARGIN
                         panel_w = WIDTH - 2 * PANEL_MARGIN
                         door_x, door_y, door_w, door_h = self.door_geo.get(which, (panel_x + panel_w//2, 0, 180, 360))
-                        
-                        safe_right = panel_x + panel_w - int(door_w * 0.6)
-                        safe_left = panel_x + int(door_w * 0.6)
+                        hero_half = int(getattr(self, "hero_w", 180) / 2)
+                        safe_left = panel_x + hero_half + 8
+                        safe_right = panel_x + panel_w - hero_half - 8
+
+                        # fallback 
+                        if safe_right <= safe_left:
+                            safe_right = panel_x + panel_w - int(door_w * 0.25)
+                            safe_left = panel_x + int(door_w * 0.25)
 
                         if not getattr(self, "hero_x", None):
                             self.hero_x = safe_right
                         else:
                             self.hero_x = max(safe_left, min(self.hero_x, safe_right))
+
                     except Exception:
-                        # fallback
                         self.hero_x = WIDTH - 200
                         self.hero_y = door_y + door_h - (self.hero_h // 2)
-                    except Exception:
-                        self.hero_y = HEIGHT - 180
 
-                    # walking animation
                     self.animate_to_door(which)
-                else:
-                    pass
 
     def _open_confirm_clear(self):
-        
         dlg = tk.Toplevel(self)
         dlg.title("Confirm Clear")
         dlg.geometry("360x140")
@@ -2270,54 +2438,40 @@ class AdventureQuiz(tk.Tk):
         b1.grid(row=0, column=0, padx=8); b2.grid(row=0, column=1, padx=8)
 
     def submit_answer(self):
-        # Generic stage handler
         if not self.state.startswith("stage"):
             return
-
         try:
             stage_num = int(self.state.replace("stage", ""))
         except Exception:
             return
-
         q_idx = stage_num - 1
         if q_idx < 0 or q_idx >= len(questions):
             return
-
         correct_answer = str(questions[q_idx].get("answer", "")).strip().lower()
         given = str(self.answer_input).strip().lower()
         correct = (given == correct_answer)
-
         if correct:
-            # Increase key count 
             self.keys_collected += 1
             self.completed.add(stage_num)
-
             if stage_num > 1:
                 door_to_unlock = stage_num - 1
                 self.unlocked.add(door_to_unlock)
-
-                # Return to hallway 
                 self.state = "hallway"
                 self.answer_input = ""
                 return
-
             if stage_num == 1:
                 self.answer_input = ""
                 self.state = "ending"
                 self._maybe_save_score()
                 return
-
         else:
-            # Wrong answer handler
             self.lives -= 1
             self.answer_input = ""
-
             if self.lives <= 0:
                 self.state = "ending"
                 self._maybe_save_score()
                 return
             self.state = "hallway"
-
 
     def _maybe_save_score(self):
         if getattr(self, "_score_saved", False): return
@@ -2332,6 +2486,59 @@ class AdventureQuiz(tk.Tk):
             print(f"Saved score for {name}: keys={keys} lives={lives}")
         except Exception as e:
             print("Failed to save score:", e)
+
+    # image caching helpers
+    def _schedule_hero_frame(self):
+        if not self.hero_is_animated or not self.hero_frames: return
+        dur = 100
+        try: dur = int(self.hero_frame_durations[self.hero_frame_idx])
+        except Exception: dur = 100
+        self.after(max(40,dur), self._advance_hero_frame)
+
+    def _advance_hero_frame(self):
+        if not self.hero_is_animated or not self.hero_frames: return
+        self.hero_frame_idx = (self.hero_frame_idx + 1) % len(self.hero_frames)
+        self.hero_img = self.hero_frames[self.hero_frame_idx]
+        keys_to_remove = [k for k in self._img_cache.keys() if isinstance(k, tuple) and k[0] in ("hero","hero_resized")]
+        for k in keys_to_remove:
+            try: del self._img_cache[k]
+            except: pass
+        tk_keys = [k for k in self._tk_image_cache.keys() if str(k).find("hero")!=-1]
+        for k in tk_keys:
+            try: del self._tk_image_cache[k]
+            except: pass
+        self._schedule_hero_frame()
+
+    def _get_resized_photo(self, pil_img, key_id, w, h):
+        if pil_img is None: return None
+        ck = (key_id, int(w), int(h))
+        if ck in self._img_cache: return self._img_cache[ck]
+        try:
+            resized = pil_img.resize((int(w), int(h)), Image.LANCZOS)
+            tkimg = ImageTk.PhotoImage(resized); self._img_cache[ck] = tkimg; return tkimg
+        except Exception as e:
+            return None
+
+    def _get_tk_image_for_panel(self, path, w, h):
+        key = (str(path), int(w), int(h))
+        if key in self._tk_image_cache: return self._tk_image_cache[key]
+        if PIL_AVAILABLE:
+            pil = safe_load_image(Path(path), target_w=w, target_h=h)
+            if pil is not None:
+                try:
+                    tkimg = ImageTk.PhotoImage(pil); self._tk_image_cache[key] = tkimg; return tkimg
+                except Exception:
+                    pass
+        try:
+            p = Path(path)
+            if p.exists():
+                try:
+                    tkimg = tk.PhotoImage(file=str(p)); self._tk_image_cache[key] = tkimg; return tkimg
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return None
 
 if __name__ == "__main__":
     if not PIL_AVAILABLE:
