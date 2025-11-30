@@ -1297,13 +1297,13 @@ class AdventureQuiz(tk.Tk):
             except Exception:
                 pass
 
-        # slow typing delay
+        # typing delay
         if ch in ".!?":
-            delay = 220
+            delay = 150
         elif ch == "\n":
-            delay = 260
+            delay = 170
         else:
-            delay = 120
+            delay = 60
 
         self._schedule_final_type_step(delay)
 
@@ -1312,11 +1312,9 @@ class AdventureQuiz(tk.Tk):
             self.canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill="black")
         except Exception:
             self.canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill="black")
-
-        # ==== FIXED FONT SIZES (smaller & fits screen) ====
         family = self.small_font.cget("family")
 
-        # Smaller headline and sub lines
+        # Smaller headline 
         headline_size = max(22, min(40, int(HEIGHT * 0.045)))
         sub_size = max(14, min(26, int(HEIGHT * 0.032)))
 
@@ -1333,7 +1331,7 @@ class AdventureQuiz(tk.Tk):
         typed = getattr(self, "final_text_shown", "") or ""
         lines = typed.split("\n") if typed else [""]
         total_height = big_font.metrics("linespace") + 12 + (len(lines) - 1) * (sub_font.metrics("linespace") + 8)
-        top_y = max( int(HEIGHT*0.28), (HEIGHT//2) - (total_height//2) )
+        top_y = (HEIGHT // 2) - (total_height // 2) - int(HEIGHT * 0.05)
 
         if lines:
             try:
@@ -1386,39 +1384,7 @@ class AdventureQuiz(tk.Tk):
                 pass
         self._final_after_id = self.after(delay_ms, self._final_type_step)
 
-    def _final_type_step(self):
-        self._final_after_id = None
-        text = getattr(self, "final_text_full", "")
-        if self.final_char_idx >= len(text):
-            self.final_done = True
-            try:
-                if pygame_available and story_typing:
-                    story_typing.stop()
-            except Exception:
-                pass
-            return
 
-        ch = text[self.final_char_idx]
-        self.final_text_shown += ch
-        self.final_char_idx += 1
-
-        try:
-            if ch.strip() and pygame_available:
-                if story_typing:
-                    story_typing.stop()
-                    story_typing.play()
-        except Exception:
-            pass
-
-        if ch in ".!?":
-          delay = 220        
-        elif ch == "\n":
-          delay = 260        
-        else:
-          delay = 120       
-
-
-        self._schedule_final_type_step(delay)
   
     def _restore_bg_music(self):
         if pygame_available:
@@ -2296,7 +2262,7 @@ class AdventureQuiz(tk.Tk):
                 pass
             self.state = "menu"; self.answer_input = ""; self.lives = 3; self.keys_collected = 0; self.completed = set(); self.unlocked = {5}; self.hero_x = 120; self.animating = False; self._score_saved = False
 
-        elif tag == "done_end":
+        elif tag == "done_end":   
             try:
                 if getattr(self, "_final_after_id", None):
                     self.after_cancel(self._final_after_id)
@@ -2325,10 +2291,53 @@ class AdventureQuiz(tk.Tk):
                 )
             else:
                 self.final_text_full = (
-                    f"It’s over, {player}…\n"
-                    "You fell before reaching the final key,\n"
-                    "but your effort will not be forgotten."
+                    f"Thank you, {player}. \n\nYour efforts will not be in vain.\n\n"
+                    "Maybe this is my fate…\n\n"
+                    "But you cannot just give up yet!\n\n"
+                    f"Don’t lose hope, {player}!"
                 )
+
+            self.final_text_shown = ""
+            self.final_char_idx = 0
+            self.final_done = False
+            self.state = "final_scene"
+
+            try:
+                self._schedule_final_type_step(0)
+            except Exception:
+                try:
+                    self.start_final_typing()
+                except Exception:
+                    pass
+
+
+            # story-type music
+            try:
+                if pygame_available:
+                    pygame.mixer.music.stop()
+                    if STORY_MUSIC_PATH.exists():
+                        pygame.mixer.music.load(str(STORY_MUSIC_PATH))
+                        pygame.mixer.music.set_volume(0.38)
+                        pygame.mixer.music.play(-1, fade_ms=400)
+            except Exception:
+                pass
+
+            player = (self.player_name or "FRIEND").strip().upper()
+            success = (self.keys_collected >= len(questions) and self.lives > 0)
+
+            if success:
+                self.final_text_full = (
+                    f"It’s over, {player}\n"
+                    "Your courage freed me"
+                )
+            else:
+                self.final_text_full = (
+                    f"Thank you, {player}. \n\nYour efforts will not be in vain.\n\n"
+                     "Maybe this is my fate…\n\n"
+                     "But you cannot just give up yet!\n\n"
+                     f"Don’t lose hope, {player}!"
+                )
+
 
             self.final_text_shown = ""
             self.final_char_idx = 0
