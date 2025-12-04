@@ -469,7 +469,7 @@ if pygame_available:
         typing_sound = None
     try:
         if BG_MUSIC_PATH.exists():
-            pygame.mixer.music.load(str(BG_MUSIC_PATH)); pygame.mixer.music.set_volume(0.25); pygame.mixer.music.play(-1, fade_ms=800); bg_music_loaded = True
+            pygame.mixer.music.load(str(BG_MUSIC_PATH)); pygame.mixer.music.set_volume(0.95); pygame.mixer.music.play(-1, fade_ms=800); bg_music_loaded = True
     except Exception:
         bg_music_loaded = False
 
@@ -601,13 +601,13 @@ class LoadingScreen(tk.Toplevel):
         self.start_time = None; self._after_id = None
         sw, sh = master_w, master_h
         self.canvas.create_text(sw//2, int(sh*0.15), text="LOADING...", font=("Press Start 2P", 22), fill=ORANGE)
-        self.percent_text_id = self.canvas.create_text(sw//2, int(sh*0.28), text="0%", font=("Consolas", 22), fill=WHITE)
+        self.percent_text_id = self.canvas.create_text(sw//2, int(sh*0.28), text="0%", font=("Press Start 2P", 22), fill=WHITE)
         bar_w = int(sw * 0.6); bar_h = max(16, int(sh * 0.04))
         self.bar_left = (sw - bar_w) // 2; self.bar_top = int(sh * 0.45)
         self.bar_right = self.bar_left + bar_w; self.bar_bottom = self.bar_top + bar_h
         self.canvas.create_rectangle(self.bar_left-4, self.bar_top-4, self.bar_right+4, self.bar_bottom+4, outline=WHITE, width=3)
         self.fill_id = self.canvas.create_rectangle(self.bar_left, self.bar_top, self.bar_left, self.bar_bottom, fill=ORANGE, outline="")
-        self.hint_id = self.canvas.create_text(sw//2, int(sh*0.62), text="", font=("Consolas", 12), fill=WHITE)
+        self.hint_id = self.canvas.create_text(sw//2, int(sh*0.62), text="", font=("Press Start 2P", 12), fill=WHITE)
 
     def start(self):
         try:
@@ -974,9 +974,10 @@ class AdventureQuiz(tk.Tk):
 
     def _prepare_door_bg(self, panel_w=None, panel_h=None):
         try:
-            panel_w = panel_w or (WIDTH - 2 * PANEL_MARGIN)
-            panel_h = panel_h or (HEIGHT - 2 * PANEL_MARGIN)
+            panel_w = WIDTH
+            panel_h = HEIGHT
             self._door_bg_tk = None
+
             if DOOR_BG_PATH and DOOR_BG_PATH.exists() and PIL_AVAILABLE:
                 pil_bg = safe_load_image(DOOR_BG_PATH, target_w=panel_w, target_h=panel_h)
                 if pil_bg:
@@ -984,6 +985,7 @@ class AdventureQuiz(tk.Tk):
                         self._door_bg_tk = ImageTk.PhotoImage(pil_bg)
                     except Exception:
                         self._door_bg_tk = None
+
             if self._door_bg_tk is None:
                 try:
                     p = Path(DOOR_BG_PATH)
@@ -991,9 +993,11 @@ class AdventureQuiz(tk.Tk):
                         self._door_bg_tk = tk.PhotoImage(file=str(p))
                 except Exception:
                     self._door_bg_tk = None
+
         except Exception as e:
             print("_prepare_door_bg error:", e)
             self._door_bg_tk = None
+
 
     def _toggle_fullscreen(self, event=None):
         try:
@@ -1007,7 +1011,7 @@ class AdventureQuiz(tk.Tk):
                 self.canvas.config(width=WIDTH, height=HEIGHT)
             except Exception:
                 pass
-            # rebuild backgrounds for new size
+            # background new size
             try: self._prepare_bg_tiles()
             except Exception: pass
             try: self._prepare_door_bg(WIDTH - 2*PANEL_MARGIN, HEIGHT - 2*PANEL_MARGIN)
@@ -1173,7 +1177,7 @@ class AdventureQuiz(tk.Tk):
         BACK_GAP = 28
         back_w, back_h = 300, 60
         back_x = box_x + (box_w - back_w) // 2
-        back_y = box_x + box_h + BACK_GAP
+        back_y = box_y + box_h + 35  
         if back_y + back_h > HEIGHT - 8:
             back_y = HEIGHT - back_h - 12
         self.draw_button("BACK TO MENU", back_y, "back_to_menu", x=back_x, w=back_w, h=back_h)
@@ -1246,7 +1250,7 @@ class AdventureQuiz(tk.Tk):
         player = player.title()
 
         # final text 
-        self.final_text_full = f"It\'s over, {player}\nYour courage freed me"
+        self.final_text_full = f"Your courage freed me, {player}\n""Thank you for guiding me\n through this journey...\n""I won't forget you!"
         self.final_text_shown = ""
         self.final_char_idx = 0
         self.final_done = False
@@ -1359,7 +1363,7 @@ class AdventureQuiz(tk.Tk):
 
     def start_final_typing(self):
         player = (self.player_name or "FRIEND").strip().upper()
-        self.final_text_full = f"It\'s over, {player}\nYour courage freed me"
+        self.final_text_full = f"Your courage freed me, {player}\n""Thank you for guiding me\n through this journey...\n""I won't forget you!"
         self.final_text_shown = ""
         self.final_char_idx = 0
         self.final_done = False
@@ -1403,9 +1407,9 @@ class AdventureQuiz(tk.Tk):
                 pass
 
     def draw_prologue(self):
-        panel_x, panel_y = PANEL_MARGIN, PANEL_MARGIN
-        panel_w, panel_h = WIDTH - 2*PANEL_MARGIN, HEIGHT - 2*PANEL_MARGIN
-        self.canvas.create_rectangle(panel_x, panel_y, panel_x+panel_w, panel_y+panel_h, fill=BLACK, outline=BORDER, width=6)
+        panel_x, panel_y = 0, 0
+        panel_w, panel_h = WIDTH, HEIGHT
+
         if not self.prologue_scenes: return
         cur = self.prologue_scenes[self.scene_index]; img_path = cur['img']
         tkimg = self._get_tk_image_for_panel(img_path, panel_w, panel_h)
@@ -1452,8 +1456,6 @@ class AdventureQuiz(tk.Tk):
 
         # Move to next scene
         self.scene_index += 1
-
-        # If all scenes are done → go to help_choice
         if self.scene_index >= len(self.prologue_scenes):
             try:
                 if pygame_available and story_typing:
@@ -1472,7 +1474,6 @@ class AdventureQuiz(tk.Tk):
         self.scene_text_shown = ""
         self.scene_char_idx = 0
 
-        # If this scene has no text
         if len(self.scene_text_full.strip()) == 0:
             self.scene_done = True
         else:
@@ -1532,142 +1533,229 @@ class AdventureQuiz(tk.Tk):
 
     def draw_help_choice(self):
         MARGIN, BORDER_W = 8, 6; PAD = 20; GAP_BETWEEN = 60
-        panel_x, panel_y = MARGIN, MARGIN; panel_w, panel_h = WIDTH - 2*MARGIN, HEIGHT - 2*MARGIN
+        panel_x, panel_y = 0, 0
+        panel_w, panel_h = WIDTH, HEIGHT
         center_y = panel_y + panel_h // 2
         self.canvas.create_rectangle(panel_x, panel_y, panel_x + panel_w, panel_y + panel_h, fill=BLACK, outline=BORDER, width=BORDER_W)
-        char_box_w, char_box_h = 300, 360; char_x = panel_x + PAD + 12; char_y = center_y - (char_box_h // 2)
-        self.canvas.create_rectangle(char_x - 6, char_y - 6, char_x + char_box_w + 6, char_y + char_box_h + 6, fill=BORDER, outline=BORDER)
-        self.canvas.create_rectangle(char_x, char_y, char_x + char_box_w, char_y + char_box_h, fill=WHITE, outline=ORANGE, width=3)
-        if PIL_AVAILABLE and getattr(self, "cry_frames", None):
-            try:
-                frame = self.cry_frames[self.cry_frame_index]
-                max_w, max_h = char_box_w - 24, char_box_h - 24
-                iw, ih = frame.size
-                if iw <= 0 or ih <= 0: iw, ih = 1, 1
-                scale = min(max_w / iw, max_h / ih)
-                nw, nh = max(1, int(iw * scale)), max(1, int(ih * scale))
-                resized = frame.resize((nw, nh), Image.LANCZOS)
-                self._cry_tk = ImageTk.PhotoImage(resized)
-                cx = char_x + char_box_w // 2; cy = char_y + char_box_h // 2
-                self.canvas.create_image(cx, cy, image=self._cry_tk, anchor="center")
-            except Exception:
-                try:
-                    if getattr(self, "_cry_pil", None):
-                        self._cry_tk = self._get_resized_photo(self._cry_pil, "cry_resized", char_box_w - 24, char_box_h - 24)
-                        if getattr(self, "_cry_tk", None):
-                            cx = char_x + char_box_w // 2; cy = char_y + char_box_h // 2
-                            self.canvas.create_image(cx, cy, image=self._cry_tk, anchor="center")
-                except Exception:
-                    pass
-        elif getattr(self, "_cry_pil", None):
-            try:
-                max_w, max_h = char_box_w - 24, char_box_h - 24; iw, ih = self._cry_pil.size; iw, ih = (iw or 1, ih or 1)
-                scale = min(max_w / iw, max_h / ih); nw, nh = max(1,int(iw*scale)), max(1,int(ih*scale))
-                self._cry_tk = self._get_resized_photo(self._cry_pil, "cry_resized", nw, nh)
-                if getattr(self, "_cry_tk", None):
-                    cx = char_x + char_box_w // 2; cy = char_y + char_box_h // 2; self.canvas.create_image(cx, cy, image=self._cry_tk, anchor="center")
-            except Exception:
-                pass
-        elif self.hero_img is not None and PIL_AVAILABLE:
-            hero_tk = self._get_resized_photo(self.hero_img, "hero_small", 180, 240)
-            if hero_tk: self.canvas.create_image(char_x + char_box_w//2, char_y + char_box_h // 2, image=hero_tk, anchor="center")
-        else:
-            self.canvas.create_text(char_x + char_box_w // 2, char_y + char_box_h // 2, text="(no sprite)", fill=ORANGE)
-        text_box_w = 880; text_box_h = 520; text_x = char_x + char_box_w + GAP_BETWEEN; text_y = center_y - (text_box_h // 2) - 10
-        self.canvas.create_rectangle(text_x - 8, text_y - 8, text_x + text_box_w + 8, text_y + text_box_h + 8, fill=BORDER, outline=BORDER)
-        self.canvas.create_rectangle(text_x, text_y, text_x + text_box_w, text_y + text_box_h, fill=BLACK, outline=ORANGE, width=4)
-        dialog_pad_x, dialog_pad_y = 40, 40; effective_width = text_box_w - (dialog_pad_x * 2)
-        typed = getattr(self, "help_text_shown", None)
-        if typed is None or typed == "":
-            player = self.player_name or "(name)"; full_dialog = (
-                f"\"H-hello...? Are you really here?\nPlease... I need someone...\nAre you the one named {player}?\n\n"
-                f"I’ve been stuck inside this place for so long.\nMy keys are lost somewhere in the Python code,\nand the door won’t open without them...\nCan you... help me?\""
+        char_box_w = int(WIDTH * 0.28)      
+        char_box_h = int(HEIGHT * 0.62)     
+
+        text_box_w = int(WIDTH * 0.62)      
+        text_box_h = int(HEIGHT * 0.72)    
+
+        gap_between = max(40, int(WIDTH * 0.03))
+        group_w = char_box_w + gap_between + text_box_w
+        group_x = (WIDTH // 2) - (group_w // 2)
+        group_y = (HEIGHT // 2) - (text_box_h // 2)
+
+        # character position
+        char_x = group_x
+        char_y = (HEIGHT // 2) - (char_box_h // 2)
+
+        # dialog box position
+        text_x = char_x + char_box_w + gap_between
+        text_y = group_y
+
+        # draw dialog outer frame
+        self.canvas.create_rectangle(
+            text_x - 8, text_y - 8,
+            text_x + text_box_w + 8,
+            text_y + text_box_h + 8,
+            fill=BORDER, outline=BORDER
+        )
+
+        # draw dialog 
+        self.canvas.create_rectangle(
+            text_x, text_y,
+            text_x + text_box_w,
+            text_y + text_box_h,
+            fill=BLACK, outline=ORANGE, width=4
+        )
+
+        # draw avatar frame
+        self.canvas.create_rectangle(
+            char_x - 6, char_y - 6,
+            char_x + char_box_w + 6,
+            char_y + char_box_h + 6,
+            fill=BORDER, outline=BORDER
+        )
+        self.canvas.create_rectangle(
+            char_x, char_y,
+            char_x + char_box_w,
+            char_y + char_box_h,
+            fill=WHITE, outline=ORANGE, width=3
+        )
+
+        try:
+            frame = self.cry_frames[self.cry_frame_index]
+            max_w, max_h = char_box_w - 24, char_box_h - 24
+            iw, ih = frame.size
+            scale = min(max_w / iw, max_h / ih)
+            nw, nh = int(iw * scale), int(ih * scale)
+            resized = frame.resize((nw, nh), Image.LANCZOS)
+            self._cry_tk = ImageTk.PhotoImage(resized)
+            self.canvas.create_image(
+                char_x + char_box_w // 2,
+                char_y + char_box_h // 2,
+                image=self._cry_tk,
+                anchor="center"
+            )
+        except Exception:
+            pass
+
+  
+        dialog_pad_x = 40
+        dialog_pad_y = 40
+        effective_width = text_box_w - (dialog_pad_x * 2)
+
+        typed = getattr(self, "help_text_shown", "")
+        if not typed:
+            player = self.player_name or "(name)"
+            full_dialog = (
+                f"\"H-hello...? Are you really here?\nPlease... I need someone...\n"
+                f"Are you the one named {player}?\n\n"
+                "I’ve been stuck inside this place for so long.\n"
+                "My keys are lost somewhere in the Python code,\n"
+                "and the door won’t open without them...\n"
+                "Can you... help me?\""
             )
             lines = wrap_text_to_lines(self.small_font, full_dialog, effective_width)
         else:
             lines = wrap_text_to_lines(self.small_font, typed, effective_width)
-        line_h = self.small_font.metrics("linespace") + 9; max_lines_fit = max(1, (text_box_h - (dialog_pad_y * 2)) // line_h)
+
+        line_h = self.small_font.metrics("linespace") + 9
+        max_lines_fit = (text_box_h - dialog_pad_y * 2) // line_h
         lines = lines[:max_lines_fit]
-        tx = text_x + dialog_pad_x; ty = text_y + dialog_pad_y
+
+        tx = text_x + dialog_pad_x
+        ty = text_y + dialog_pad_y
+
         for ln in lines:
             self.canvas.create_text(tx+2, ty+2, anchor="nw", text=ln, font=self.small_font, fill="#000000")
             self.canvas.create_text(tx, ty, anchor="nw", text=ln, font=self.small_font, fill=WHITE)
             ty += line_h
-        btn_w = 120; btn_h = 45
-        by = text_y + text_box_h - btn_h - 13
-        left_btn_x  = text_x + 80
-        right_btn_x = text_x + text_box_w - btn_w - 80
-        if "help_yes" in self.click_areas and not self.help_done:
-            try: del self.click_areas["help_yes"]
-            except: pass
-        if getattr(self, "help_done", False):
-            self.draw_button("YES", by, "help_yes", x=right_btn_x, w=btn_w, h=btn_h)
+
+        # buttons positioned under dialog 
+        btn_w = 210
+        btn_h = 60
+        by = text_y + text_box_h - btn_h - 28
+
+        # far-right aligned 
+        bx = text_x + text_box_w - btn_w - 40
+
+        # optional center pair positions 
+        left_btn_x  = text_x + (text_box_w // 2) - btn_w - 30
+        right_btn_x = text_x + (text_box_w // 2) + 30
+
+        if self.help_done:
+            self.draw_button("YES", by, "help_yes", x=bx, w=btn_w, h=btn_h)
+
 
     def draw_help_happy(self):
-        MARGIN, BORDER_W = 8, 6; PAD = 20; GAP_BETWEEN = 60
-        panel_x, panel_y = MARGIN, MARGIN; panel_w, panel_h = WIDTH - 2 * MARGIN, HEIGHT - 2 * MARGIN
-        center_y = panel_y + panel_h // 2
-        self.canvas.create_rectangle(panel_x, panel_y, panel_x + panel_w, panel_y + panel_h, fill=BLACK, outline=BORDER, width=BORDER_W)
-        char_box_w, char_box_h = 300, 360; char_x = panel_x + PAD + 12; char_y = center_y - (char_box_h // 2)
-        self.canvas.create_rectangle(char_x - 6, char_y - 6, char_x + char_box_w + 6, char_y + char_box_h + 6, fill=BORDER, outline=BORDER)
-        self.canvas.create_rectangle(char_x, char_y, char_x + char_box_w, char_y + char_box_h, fill=WHITE, outline=ORANGE, width=3)
-        if PIL_AVAILABLE and getattr(self, "happy_frames", None):
-            try:
-                frame = self.happy_frames[self.happy_frame_index]
-                max_w, max_h = char_box_w - 24, char_box_h - 24
-                iw, ih = frame.size
-                if iw <= 0 or ih <= 0: iw, ih = 1, 1
-                scale = min(max_w / iw, max_h / ih)
-                nw, nh = max(1, int(iw * scale)), max(1, int(ih * scale))
-                resized = frame.resize((nw, nh), Image.LANCZOS)
-                self._happy_tk = ImageTk.PhotoImage(resized)
-                cx = char_x + char_box_w // 2; cy = char_y + char_box_h // 2
-                self.canvas.create_image(cx, cy, image=self._happy_tk, anchor="center")
-            except Exception:
-                try:
-                    if getattr(self, "_happy_pil", None):
-                        self._happy_tk = self._get_resized_photo(self._happy_pil, "happy_resized", char_box_w - 24, char_box_h - 24)
-                        if getattr(self, "_happy_tk", None):
-                            cx = char_x + char_box_w // 2; cy = char_y + char_box_h // 2
-                            self.canvas.create_image(cx, cy, image=self._happy_tk, anchor="center")
-                except Exception:
-                    pass
-        elif getattr(self, "_happy_pil", None):
-            try:
-                max_w, max_h = char_box_w - 24, char_box_h - 24; iw, ih = self._happy_pil.size; iw, ih = (iw or 1, ih or 1)
-                scale = min(max_w / iw, max_h / ih); nw, nh = max(1,int(iw*scale)), max(1,int(ih*scale))
-                self._happy_tk = self._get_resized_photo(self._happy_pil, "happy_resized", nw, nh)
-                if getattr(self, "_happy_tk", None):
-                    cx = char_x + char_box_w // 2; cy = char_y + char_box_h // 2; self.canvas.create_image(cx, cy, image=self._happy_tk, anchor="center")
-            except Exception:
-                pass
-        elif self.hero_img is not None and PIL_AVAILABLE:
-            hero_tk = self._get_resized_photo(self.hero_img, "hero_small2", 180, 240)
-            if hero_tk: self.canvas.create_image(char_x + char_box_w//2, char_y + char_box_h//2, image=hero_tk, anchor="center")
-        else:
-            self.canvas.create_text(char_x + char_box_w//2, char_y + char_box_h//2, text="(no sprite)", fill=ORANGE)
-        text_box_w = 880; text_box_h = 520; text_x = char_x + char_box_w + GAP_BETWEEN; text_y = center_y - (text_box_h // 2) - 10
-        self.canvas.create_rectangle(text_x - 8, text_y - 8, text_x + text_box_w + 8, text_y + text_box_h + 8, fill=BORDER, outline=BORDER)
-        self.canvas.create_rectangle(text_x, text_y, text_x + text_box_w, text_y + text_box_h, fill=BLACK, outline=ORANGE, width=4)
-        dialog_pad_x, dialog_pad_y = 40, 40; effective_width = text_box_w - (dialog_pad_x * 2)
-        typed = getattr(self, "help_text_shown", "")
-        if typed is None or typed == "":
-            lines = []
-        else:
-            lines = wrap_text_to_lines(self.small_font, typed, effective_width)
-        line_h = self.small_font.metrics("linespace") + 9; max_lines_fit = max(1, (text_box_h - (dialog_pad_y * 2)) // line_h); lines = lines[:max_lines_fit]
-        tx = text_x + dialog_pad_x; ty = text_y + dialog_pad_y
+        panel_x, panel_y = 0, 0
+        panel_w, panel_h = WIDTH, HEIGHT
+
+        self.canvas.create_rectangle(0, 0, WIDTH, HEIGHT, fill=BLACK)
+
+        char_box_w = int(WIDTH * 0.28)
+        char_box_h = int(HEIGHT * 0.62)
+
+        text_box_w = int(WIDTH * 0.62)
+        text_box_h = int(HEIGHT * 0.72)
+
+        gap_between = int(WIDTH * 0.03)
+
+        group_w = char_box_w + gap_between + text_box_w
+        group_x = (WIDTH // 2) - (group_w // 2)
+        group_y = (HEIGHT // 2) - (text_box_h // 2)
+
+        char_x = group_x
+        char_y = (HEIGHT // 2) - (char_box_h // 2)
+
+        text_x = char_x + char_box_w + gap_between
+        text_y = group_y
+
+        # dialog frame
+        self.canvas.create_rectangle(
+            text_x - 8, text_y - 8,
+            text_x + text_box_w + 8,
+            text_y + text_box_h + 8,
+            fill=BORDER, outline=BORDER
+        )
+
+        self.canvas.create_rectangle(
+            text_x, text_y,
+            text_x + text_box_w,
+            text_y + text_box_h,
+            fill=BLACK, outline=ORANGE, width=4
+        )
+
+        # avatar frame
+        self.canvas.create_rectangle(
+            char_x - 6, char_y - 6,
+            char_x + char_box_w + 6,
+            char_y + char_box_h + 6,
+            fill=BORDER, outline=BORDER
+        )
+        self.canvas.create_rectangle(
+            char_x, char_y,
+            char_x + char_box_w,
+            char_y + char_box_h,
+            fill=WHITE, outline=ORANGE, width=3
+        )
+
+        # happy GIF
+        try:
+            frame = self.happy_frames[self.happy_frame_index]
+            max_w = char_box_w - 24
+            max_h = char_box_h - 24
+            iw, ih = frame.size
+            scale = min(max_w / iw, max_h / ih)
+            resized = frame.resize((int(iw*scale), int(ih*scale)), Image.LANCZOS)
+            self._happy_tk = ImageTk.PhotoImage(resized)
+            self.canvas.create_image(
+                char_x + char_box_w//2,
+                char_y + char_box_h//2,
+                image=self._happy_tk,
+                anchor="center"
+            )
+        except:
+            pass
+
+        # text
+        dialog_pad_x = 40
+        dialog_pad_y = 40
+        effective_width = text_box_w - dialog_pad_x*2
+
+        typed = self.help_text_shown or ""
+        lines = wrap_text_to_lines(self.small_font, typed, effective_width)
+
+        line_h = self.small_font.metrics("linespace") + 9
+        max_lines = (text_box_h - dialog_pad_y*2) // line_h
+        lines = lines[:max_lines]
+
+        tx = text_x + dialog_pad_x
+        ty = text_y + dialog_pad_y
+
         for ln in lines:
-            self.canvas.create_text(tx+2, ty+2, anchor="nw", text=ln, font=self.small_font, fill="#000000")
-            self.canvas.create_text(tx, ty, anchor="nw", text=ln, font=self.small_font, fill=WHITE); ty += line_h
-        btn_w, btn_h = 220, 64; by = text_y + text_box_h - btn_h - 28
-        left_btn_x = text_x + 60; right_btn_x = text_x + text_box_w - btn_w - 60
+            self.canvas.create_text(tx+2, ty+2, anchor="nw", text=ln, font=self.small_font, fill="#000")
+            self.canvas.create_text(tx, ty, anchor="nw", text=ln, font=self.small_font, fill=WHITE)
+            ty += line_h
+
+        # buttons
+        btn_w, btn_h = 220, 64
+        by = text_y + text_box_h - btn_h - 28
+
+        left_btn_x = text_x + 60
+        right_btn_x = text_x + text_box_w - btn_w - 60
+
         self.draw_button("START GAME", by, "start_game", x=left_btn_x, w=btn_w, h=btn_h)
         self.draw_button("BACK", by, "intro_back", x=right_btn_x, w=btn_w, h=btn_h)
 
     def draw_story_intro(self, _text_ignored):
         MARGIN, BORDER_W = 8, 6; PAD = 20; GAP_BETWEEN = 60
-        panel_x, panel_y = MARGIN, MARGIN; panel_w, panel_h = WIDTH - 2 * MARGIN, HEIGHT - 2 * MARGIN
+        panel_x, panel_y = 0, 0
+        panel_w, panel_h = WIDTH, HEIGHT
         center_y = panel_y + panel_h // 2
         self.canvas.create_rectangle(panel_x, panel_y, panel_x + panel_w, panel_y + panel_h, fill=BLACK, outline=BORDER, width=BORDER_W)
         char_box_w, char_box_h = 300, 360; char_x = panel_x + PAD + 12; char_y = center_y - (char_box_h // 2)
@@ -1682,7 +1770,7 @@ class AdventureQuiz(tk.Tk):
                 cx = char_x + char_box_w // 2; cy = char_y + char_box_h // 2; self.canvas.create_image(cx, cy, image=self.hero_intro_tk, anchor="center")
         else:
             self.canvas.create_text(char_x + char_box_w//2, char_y + char_box_h//2, text="(no sprite)", fill=ORANGE)
-        text_box_w = 880; text_box_h = 520; text_x = char_x + char_box_w + GAP_BETWEEN; text_y = center_y - (text_box_h // 2) - 10
+        text_box_w = int(WIDTH * 0.60); text_box_h = int(HEIGHT * 0.70); text_x = (WIDTH // 2) - (text_box_w // 2); text_y = (HEIGHT // 2) - (text_box_h // 2)
         self.canvas.create_rectangle(text_x - 8, text_y - 8, text_x + text_box_w + 8, text_y + text_box_h + 8, fill=BORDER, outline=BORDER)
         self.canvas.create_rectangle(text_x, text_y, text_x + text_box_w, text_y + text_box_h, fill=BLACK, outline=ORANGE, width=4)
         dialog_pad_x, dialog_pad_y = 40, 40; effective_width = text_box_w - (dialog_pad_x * 2)
@@ -1700,15 +1788,15 @@ class AdventureQuiz(tk.Tk):
         self.draw_button("BACK", by, "intro_back", x=center_x + 30, w=btn_w, h=btn_h)
 
     def draw_hallway(self):
-        MARGIN, BORDER_W = 8, 6
-        panel_x, panel_y = MARGIN, MARGIN
-        panel_w, panel_h = WIDTH - 2 * MARGIN, HEIGHT - 2 * MARGIN
+        MARGIN, BORDER_W = 0, 0
+        panel_x, panel_y = 0, 0
+        panel_w, panel_h = WIDTH, HEIGHT
 
         try:
             if getattr(self, "_door_bg_tk", None):
-                self.canvas.create_image(panel_x, panel_y, image=self._door_bg_tk, anchor="nw")
+                self.canvas.create_image(0, 0, image=self._door_bg_tk, anchor="nw")
             else:
-                self.canvas.create_rectangle(panel_x, panel_y, panel_x + panel_w, panel_y + panel_h, fill="#000000", outline=BORDER, width=BORDER_W)
+                self.canvas.create_rectangle(0, 0, panel_w, panel_h, fill="#000000", outline=BORDER, width=0)
         except Exception as e:
             print("draw_hallway error:", e)
             try:
@@ -1815,7 +1903,9 @@ class AdventureQuiz(tk.Tk):
             if hero_tk:
                 self.canvas.create_image(self.hero_x, hero_bottom_y, image=hero_tk, anchor="s")
 
-        self.draw_button("EXIT", panel_y + panel_h - 100, "exit_game", x=panel_x + panel_w - 220, w=200, h=60)
+        self.draw_button("EXIT", panel_y + panel_h - 140, "exit_game",
+                 x=panel_x + panel_w - 260, w=200, h=60)
+
 
     def draw_stage(self, stage_idx, user_input):
         q = questions[stage_idx]
@@ -1849,7 +1939,6 @@ class AdventureQuiz(tk.Tk):
             self.draw_mc_button(label, x, y, w, h, tag)
         status = f"Lives: {'♥'*self.lives}   Keys: {'🔑'*self.keys_collected}"
         self.canvas.create_text(70, opt_area_top + opt_h*2 + opt_gap_y + 16, anchor="nw", text=status, fill=ORANGE, font=self.small_font)
-
     def draw_ending(self):
         try:
             if self.ending_frames:
@@ -1972,9 +2061,9 @@ class AdventureQuiz(tk.Tk):
             self.canvas.create_text(keys_right, y, anchor="e", text=keys_text, font=body_font, fill=WHITE)
         if not entries:
             self.canvas.create_text(WIDTH//2, box_y + box_h//2, text="No scores yet.", font=self.small_font, fill=WHITE)
-        btn_w = 360
-        btn_h = 55
-        gap = 28
+        btn_w = 350
+        btn_h = 50
+        gap = 415
         total_w = btn_w * 2 + gap
         start_x = box_x + max(20, (box_w - total_w) // 2)
         btn_y = box_y + box_h - 70
@@ -2286,8 +2375,9 @@ class AdventureQuiz(tk.Tk):
 
             if success:
                 self.final_text_full = (
-                    f"It’s over, {player}\n"
-                    "Your courage freed me"
+                    f"Your courage freed me, {player}\n"
+                    "Thank you for guiding me\n through this journey...\n"
+                    "I won't forget you!"
                 )
             else:
                 self.final_text_full = (
@@ -2327,8 +2417,9 @@ class AdventureQuiz(tk.Tk):
 
             if success:
                 self.final_text_full = (
-                    f"It’s over, {player}\n"
-                    "Your courage freed me"
+                    f"Your courage freed me, {player}\n"
+                     "Thank you for guiding me\n through this journey...\n"
+                     "I won't forget you!"
                 )
             else:
                 self.final_text_full = (
